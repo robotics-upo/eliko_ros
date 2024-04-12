@@ -1,0 +1,12 @@
+<launch>
+    <arg name="serverIP" default="10.8.4.1"/>
+    <arg name="serverPort" default="25025"/>
+    <arg name="frameID" default="Eliko"/>
+    <node pkg="eliko_driver" exec="eliko_driver" name="eliko_test">
+        <param name="serverIP" value="$(var serverIP)"/>
+        <param name="serverPort" value="$(var serverPort)"/>
+        <param name="frameID" value="$(var frameID)"/>
+    </node>
+    <node pkg="rviz2" exec="rviz2" name="Visualizer" args="-d $(find-pkg-share eliko_driver)/rviz/elicoVisualization.rviz"/>
+    <node pkg="tf2_ros" exec="static_transform_publisher" args="0 0 0 0 0 0 PointCloud Eliko"/>
+</launch>
