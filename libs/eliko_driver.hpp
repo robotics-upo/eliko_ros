@@ -57,172 +57,125 @@ class eliko_driver: public rclcpp::Node{
         cloud_msg.height=POINTCLOUD_HEIGHT;
     }
     /**
-     * @brief Sends the message to obtain the Anchor Coords to the server.
+     * @brief Sends the message to obtain the Anchor Coords to the server, obtains all the data sent back by the server and stores them in a struct.
     */
-    void getAnchorCoords(int clientSocket)
+    void getAnchorCoords(int clientSocket,rclcpp::Node::SharedPtr node)
     {
+        int bytesRead;
+        char buffer[1024];
+        auto publisherAnchor=node->create_publisher<sensor_msgs::msg::PointCloud2>("PointCloudAnchors",10);
+        sensor_msgs::PointCloud2Iterator<float>pos_X(cloudAnchors,"x");
+        sensor_msgs::PointCloud2Iterator<float>pos_Y(cloudAnchors,"y");
+        sensor_msgs::PointCloud2Iterator<float>pos_Z(cloudAnchors,"z");
         send(clientSocket,getAnchorCommand,sizeof(getAnchorCommand),0);
-        
+        while((bytesRead=recv(clientSocket,buffer,sizeof(buffer),0))>0){
+            fillCloudMessage(cloudAnchors);
+            std::vector<std::string> lines;
+            std::istringstream iss(buffer);
+            std::string line;
+            while (std::getline(iss,line))
+            {
+                lines.push_back(line);
+            }
+            for (auto& l:lines)
+            {
+                std::istringstream ss(l);
+                std::vector<std::string>words;
+                std::string word;
+                while(std::getline(ss,word,','))
+                {
+                    words.push_back(word);
+                }
+                if(words[1]==AnchorCoord){    
+                    ANCHOR_COORD anchor;
+                    anchor.anchorID=words[2];
+                    anchor.anchorRole=words[3][0];
+                    anchor.anchorSN=words[4];
+                    anchor.anchorPosition.X=stod(words[5]);
+                    anchor.anchorPosition.Y=stod(words[6]);
+                    anchor.anchorPosition.Z=stod(words[7]);
+                    *pos_X=anchor.anchorPosition.X;
+                    *pos_Y=anchor.anchorPosition.Y;
+                    *pos_Z=anchor.anchorPosition.Z;
+                    anchor.lastConnectionEstablished=words[8];
+                    anchor.lastConnectionLost=words[9];
+                    anchor.connectionState=stoi(words[10]);
+                    ++pos_X;
+                    ++pos_Y;
+                    ++pos_Z;
+                }
+            }
+            publisherAnchor->publish(cloudAnchors);  
+        }   
     }
-
-    /**
-     * @brief Reads all the messages sent by the server, filters them, creates new messages and sends the data to Rviz
-    */
-    int readData(int socket){
-        auto node=rclcpp::Node::make_shared("publisherData");
-        auto publisherAnchors=node->create_publisher<sensor_msgs::msg::PointCloud2>("PointCloudAnchors",10);
-        auto publisherTags=node->create_publisher<sensor_msgs::msg::PointCloud2>("PointCloudTags",10);
+    void setReportList(int clientSocket,rclcpp::Node::SharedPtr node){
         char buffer[1024];
         int bytesRead;
-
-        while (true)
-        {
-        sensor_msgs::PointCloud2Iterator<float>iter_xA(cloudAnchors,"x");
-        sensor_msgs::PointCloud2Iterator<float>iter_yA(cloudAnchors,"y");
-        sensor_msgs::PointCloud2Iterator<float>iter_zA(cloudAnchors,"z");
-
-        sensor_msgs::PointCloud2Iterator<float>iter_xT(cloudTags,"x");
-        sensor_msgs::PointCloud2Iterator<float>iter_yT(cloudTags,"y");
-        sensor_msgs::PointCloud2Iterator<float>iter_zT(cloudTags,"z");
-       /*     std::cout<<"Do you want to get the Anchors coords?(Y, N)";
-            char response;
-            std::cin>>response;
-            if(response=='Y'||response=='y'){ */
-                getAnchorCoords(socket);
-                while((bytesRead=recv(socket,buffer,sizeof(buffer),0))>0){
-                    std::vector<std::string> lines;
-                    std::istringstream iss(buffer);
-                    std::string line;
-                    while (std::getline(iss,line))
-                    {
-                        lines.push_back(line);
-                    }
-                    std::vector<std::vector<std::string>>wordsByLine;
-                    for (auto& l:lines)
-                    {
-                        std::istringstream ss(l);
-                        std::vector<std::string>words;
-                        std::string word;
-                        while(std::getline(ss,word,','))
-                        {
-                            words.push_back(word);
-                        }
-                        wordsByLine.push_back(words);
-                    }
-                    for(auto &words:wordsByLine){
-                        std::string messageID=words[1];
-                        if(messageID==AnchorCoord){
-                            struct ANCHOR_COORD response;
-                            fillCloudMessage(cloudAnchors);
-                            response.anchorID=words[3];
-                            response.anchorRole=words[4][0];
-                            response.anchorSN=words[5];
-                            response.anchorPosition.X=stod(words[6]);
-                            response.anchorPosition.Y=stod(words[7]);
-                            response.anchorPosition.Z=stod(words[8]);
-                            response.lastConnectionEstablished=words[9];
-                            response.lastConnectionLost=words[10];
-                            response.connectionState=stoi(words[11]);
-                            *iter_xA=response.anchorPosition.X;
-                            *iter_yA=response.anchorPosition.Y;
-                            *iter_zA=response.anchorPosition.Z;
-                            ++iter_xA;
-                            ++iter_yA;
-                            ++iter_zA;
-                            anchorModifier.resize(SIZE);
-                            
-                            publisherAnchors->publish(cloudAnchors);
-                        }
-                    }
-                }
-                for (int i =0;i<1025;i++){
-                buffer[i] = '\0';
-                }
-           /* }else if(response!='N'&&response!='n'&&response!='Y'&&response!='y'){
-                std::cout<<"Invalid answer";
-                return -1;
-            }*/
-            send(socket,getRRlCoordCommand,sizeof(getRRlCoordCommand),0);
-            while((bytesRead=recv(socket,buffer,sizeof(buffer),0))>0){
-                std::vector<std::string> lines;
-                std::istringstream iss(buffer);
-                std::string line;
-                while (std::getline(iss,line))
+        auto publisherAnchor=node->create_publisher<sensor_msgs::msg::PointCloud2>("PointCloudAnchors",10);
+        send(clientSocket,getRRlCoordCommand,sizeof(getRRlCoordCommand),0);
+        while((bytesRead=recv(clientSocket,buffer,sizeof(buffer),0))>0){
+            std::vector<std::string> lines;
+            std::istringstream iss(buffer);
+            std::string line;
+            while (std::getline(iss,line))
+            {
+                lines.push_back(line);
+            }
+            for (auto& l:lines)
+            {
+                std::istringstream ss(l);
+                std::vector<std::string>words;
+                std::string word;
+                while(std::getline(ss,word,','))
                 {
-                    lines.push_back(line);
+                    words.push_back(word);
                 }
-                std::vector<std::vector<std::string>>wordsByLine;
-                for (auto& l:lines)
-                {
-                    std::istringstream ss(l);
-                    std::vector<std::string>words;
-                    std::string word;
-                    while(std::getline(ss,word,','))
+                if(words[1]==rr_l){
+                    RR_L distances; 
+                    int messageLength=words.size();
+                    int numAnchorsRelatedMessages=messageLength-4;/*Not sure if I have to substract 4 to get rid of
+                    the fields that are not Anchor related or a bigger number.*/
+                    int numAnchorsDataMessages=numAnchorsRelatedMessages/3;//Because there are 3 different types of Anchor fields.
+                    distances.seqNumber=stoi(words[2]);
+                    distances.tagSN=words[3];
+                    for (int i = 0; i < numAnchorsDataMessages; i++)
                     {
-                        words.push_back(word);
+                        distances.anchors->anchorID=words[4+i*2];
+                        distances.anchors->distance=stoi(words[5+i*2]);
                     }
-                    wordsByLine.push_back(words);
-                }
-                for(auto &words:wordsByLine){
-                    std::string messageID=words[1];
-                    if (messageID==rr_l){//Check if it works.
-                        std::cout<<"TagID: "<<words[3]<<"\nAnchor1ID: "<<words[4]<<"\nAnchor1Distance:"<<words[5]<<"\n";
-                        struct RR_L response;
-                        response.seqNumber=stoi(words[2]);
-                        response.tagSN=words[3];
-                        int numOfWords=words.size();
-                        int anchorData=numOfWords-6;
-                        int anchorCoords=anchorData/3;
-                        for (int i = 0; i < anchorCoords; i++)
-                        {
-                            response.anchors[i].anchorID=words[4+(i*2)];
-                            response.anchors[i].distance=stoi(words[5+(i*2)]);
-                        }
-                        response.timestamp=words[4+anchorCoords*2];
-                        for (int i = 0; i < anchorCoords; i++)
-                        {
-                            response.flags[i].flag=words[5+(anchorCoords*2)+i];
-                        }
-                        response.tagError.flag=words[5+anchorData];
-                    }else if (messageID==coord)
+                    distances.timestamp=words[5+numAnchorsDataMessages*2];
+                    for(int i=0;i<numAnchorsDataMessages; i++)
                     {
-                    std::cout<<"TagID: "<<words[3]<<"\n X,Y,Z Coords: \nX: "<<words[4]<<"\nY: "<<words[5]<<"\nZ:"<<words[6]<<"\n";
-                    struct COORD response;
-                    fillCloudMessage(cloudTags);
-                    response.seqNumber=stoi(words[2]);
-                    response.tagSN=words[3];
+                        distances.flags->flag=words[6+numAnchorsDataMessages*2+i];
+                    }
+                    distances.tagError.flag=words[messageLength-1];
+                }else if(words[1]==coord){
+                    COORD coordinates;
+                    coordinates.seqNumber=stoi(words[2]);
+                    coordinates.tagSN=words[3];
                     if(words[4]!=""){
-                        response.tagCoords.X=stoi(words[4]);
-                        response.tagCoords.Y=stoi(words[5]);
-                        response.tagCoords.Z=stoi(words[6]);   
+                        coordinates.tagCoords.X=stod(words[4]);
+                        coordinates.tagCoords.Y=stod(words[5]);
+                        coordinates.tagCoords.Z=stod(words[6]);
                     }
-                    response.Info=words[7];
-                    response.timestamp=stod(words[8]);
-                    *iter_xT=response.tagCoords.X;
-                    *iter_yT=response.tagCoords.Y;
-                    *iter_zT=response.tagCoords.Z;
-                    ++iter_xT;
-                    ++iter_yT;
-                    ++iter_zT;
-                    tagModifier.resize(SIZE);
-                    publisherTags->publish(cloudTags);
-                    }
+                    coordinates.Info=words[7];
+                    coordinates.timestamp=stod(words[8]);
                 }
             }
-            for (int i =0;i<1025;i++){
-                buffer[i] = '\0';
-            }
-
         }
-        
-    }    
+        for (int i =0;i<1025;i++){
+            buffer[i] = '\0';
+        }
 
+    }
+    
     public:
     std::string frame_ID;
     std::string serverIP;
     int serverPort;
 
     eliko_driver():Node("eliko_driver"),anchorModifier(cloudAnchors),tagModifier(cloudTags){
+        auto node=rclcpp::Node::make_shared("publisherData");
         this->declare_parameter("serverIP",DEFAULT_SERVER_IP);
         this->declare_parameter("serverPort",DEFAULT_PORT);
         this->declare_parameter("frameID",DEFAULT_FRAME_ID);
@@ -232,37 +185,35 @@ class eliko_driver: public rclcpp::Node{
         
         }else{
             sockaddr_in serverAddress;
-        serverAddress.sin_family=AF_INET;
-        serverAddress.sin_port=htons(DEFAULT_PORT);
-        serverAddress.sin_addr.s_addr=inet_addr(DEFAULT_SERVER_IP);
-
-        if (connect(clientSocket,(struct sockaddr*)&serverAddress, sizeof(serverAddress))==-1){
-            std::cerr<<"Problem trying to connect to the server"<<std::endl;
-            close(clientSocket);
-        }else{
-            
-            std::cout<<"Connected to the server."<<std::endl;   
-            rclcpp::Clock clock;
-            this->frame_ID=this->get_parameter("frameID").as_string();
-            this->serverIP=this->get_parameter("serverIP").as_string();
-            this->serverPort=this->get_parameter("serverPort").as_int();
-
-            anchorModifier.setPointCloud2Fields(3,
-                "x",1,sensor_msgs::msg::PointField::FLOAT32,
-                "y",1,sensor_msgs::msg::PointField::FLOAT32,
-                "z",1,sensor_msgs::msg::PointField::FLOAT32
-            );
-            anchorModifier.reserve(SIZE);
-            anchorModifier.clear();
-            tagModifier.setPointCloud2Fields(3,
-                "x",1,sensor_msgs::msg::PointField::FLOAT32,
-                "y",1,sensor_msgs::msg::PointField::FLOAT32,
-                "z",1,sensor_msgs::msg::PointField::FLOAT32
-            );
-            tagModifier.reserve(SIZE);
-            tagModifier.clear();
-            readData(clientSocket);
-            }
+            serverAddress.sin_family=AF_INET;
+            serverAddress.sin_port=htons(DEFAULT_PORT);
+            serverAddress.sin_addr.s_addr=inet_addr(DEFAULT_SERVER_IP);
+            if (connect(clientSocket,(struct sockaddr*)&serverAddress, sizeof(serverAddress))==-1){
+                std::cerr<<"Problem trying to connect to the server"<<std::endl;
+                close(clientSocket);
+            }else{
+                std::cout<<"Connected to the server."<<std::endl;   
+                rclcpp::Clock clock;
+                this->frame_ID=this->get_parameter("frameID").as_string();
+                this->serverIP=this->get_parameter("serverIP").as_string();
+                this->serverPort=this->get_parameter("serverPort").as_int();
+                anchorModifier.setPointCloud2Fields(3,
+                    "x",1,sensor_msgs::msg::PointField::FLOAT32,
+                    "y",1,sensor_msgs::msg::PointField::FLOAT32,
+                    "z",1,sensor_msgs::msg::PointField::FLOAT32
+                );
+                anchorModifier.reserve(SIZE);
+                anchorModifier.clear();
+                getAnchorCoords(clientSocket,node);
+                tagModifier.setPointCloud2Fields(3,
+                    "x",1,sensor_msgs::msg::PointField::FLOAT32,
+                    "y",1,sensor_msgs::msg::PointField::FLOAT32,
+                    "z",1,sensor_msgs::msg::PointField::FLOAT32
+                );
+                tagModifier.reserve(SIZE);
+                tagModifier.clear();
+                setReportList(clientSocket,node);
+            }    
         }
     }
 
