@@ -1,20 +1,32 @@
+/**
+ * @file Eliko_data.h
+ * @brief This file contains all of the structures used by the driver to store and show the data obtained from the server.
+*/
 #include <cstdint>
 
+/**
+ * @brief Stores the calculated distance from the tag to the Anchor.
+*/
 struct DistanceToAnchor
 {
     std::string anchorID;
     int distance;
 };
-
+/**
+ * @brief Stores all of the different error flags obtained from the server.
+*/
 struct errorFlags
 {
     std::string flag;
 };
 
+/**
+ * @brief Stores the Tag`s X,Y,Z Coordinates calculated by the Anchors. 
+*/
 struct coordinates{
-    double X;
-    double Y;
-    double Z;
+    float X;
+    float Y;
+    float Z;
 };
 
 struct Keyword
@@ -25,6 +37,7 @@ struct Keyword
     uint8_t update_intervalS;//Status
 
 };
+
 
 //To save the distance between each anchor an the Tag
 struct RR_L
@@ -57,6 +70,9 @@ struct COORD_E
     double Yconfidence;
     double Zconfidence;
 };
+/**
+ * @brief Stores the values from the fields obtained when asking for the Anchor Coords
+*/
 struct ANCHOR_COORD
 {
     std::string anchorID;
@@ -67,7 +83,9 @@ struct ANCHOR_COORD
     std::string lastConnectionLost;
     int connectionState;
 };
-
+/**
+ *  @brief This struct stores more information about the Anchors Coords
+*/
 struct ANCHOR_COORD_E
 {
     std::string anchorID;
