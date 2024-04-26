@@ -15,34 +15,46 @@
 #include <sstream>
 #include <sensor_msgs/point_cloud2_iterator.hpp>
 #include "rclcpp/rclcpp.hpp"
-#include "Eliko_data.h"
-
+#include "eliko_data.h"
+#include "eliko_messages/msg/distances.hpp"
+/**
+ * These rows store the values necessary to stablish communication with the server.
+*/
 #define DEFAULT_PORT 25025
 #define DEFAULT_SERVER_IP "10.8.4.1"
 #define POINTCLOUD_HEIGHT 1
 #define SIZE 1000
-#define DEFAULT_FRAME_ID "Eliko" 
-#define rr_l "RR_L"
-#define AnchorCoord "ANCHOR_COORD"
-#define AnchorCoordE "ANCHOR_COORD_E"
-#define coord "COORD"
-#define coord_E "COORD_E"
-#define getEulaStatusCommand "$PEKIO,EULA,STATUS\r\n"
-#define acceptEulaCommand "$PEKIO,EULA,ACCEPT\r\n"
-#define getAnchorCommand "$PEKIO,GET_ANCHORS\r\n"
-#define getAnchorCommandE "$PEKIO,GET_ANCHORS_E\r\n"
-#define getRRlCommand "$PEKIO,SET_REPORT_LIST,RR_L\r\n"
-#define getCoordCommand "$PEKIO,SET_REPORT_LIST,COORD\r\n"
-#define getCoordECommand "$PEKIO,SET_REPORT_LIST,COORD_E\r\n"
-#define getRRlCoordCommand "$PEKIO,SET_REPORT_LIST,RR_L,COORD\r\n"
-#define getRRlCoordECommand "$PEKIO,SET_REPORT_LIST,RR_L,COORD_E\r\n"
-#define getEverythingCommand "$PEKIO,SET_REPORT_LIST,RR_L,COORD,COORD_E\r\n"
+#define DEFAULT_FRAME_ID "Eliko"//This row stores the value of the default frame id which will bw used to show the data in rviz2. 
+/**
+ * These next rows store the strings that will be used to identify the different types of messages
+ * received from the radar.
+*/
+#define RR_L "RR_L"
+#define ANCHORCOORD "ANCHOR_COORD"
+#define ANCHORCOORDE "ANCHOR_COORD_E"
+#define COORD "COORD"
+#define COORD_E "COORD_E"
+#define NOT_UNDERSTAND "CANNOT_UNDERSTAND"
+/**
+ * These next define rows store the messages the user (driver) sends to the server to obtain
+ * some data and some of the responses the server sends.
+*/
+#define GETEUKASTATUSCOMMAND "$PEKIO,EULA,STATUS\r\n"
+#define ACCEPTEULACOMMAND "$PEKIO,EULA,ACCEPT\r\n"
+#define GETANCHORCOMMAND "$PEKIO,GET_ANCHORS\r\n"
+#define GETANCHORCOMMANDE "$PEKIO,GET_ANCHORS_E\r\n"
+#define GETRRLCOMMAND "$PEKIO,SET_REPORT_LIST,RR_L\r\n"
+#define GETCOORDCOMMAND "$PEKIO,SET_REPORT_LIST,COORD\r\n"
+#define GETCOORDECOMMAND "$PEKIO,SET_REPORT_LIST,COORD_E\r\n"
+#define GETRRLCOORDCOMMAND "$PEKIO,SET_REPORT_LIST,RR_L,COORD\r\n"
+#define GETRRLCOORDECOMMAND "$PEKIO,SET_REPORT_LIST,RR_L,COORD_E\r\n"
+#define GETEVERYTHINGCOMMAND "$PEKIO,SET_REPORT_LIST,RR_L,COORD,COORD_E\r\n"
 
-class eliko_driver: public rclcpp::Node{
+class Eliko_driver: public rclcpp::Node{
     private:
     sensor_msgs::msg::PointCloud2 cloudTags;
     sensor_msgs::msg::PointCloud2 cloudAnchors;
-
+    eliko_messages::msg::Distances DistanceToTags;
     sensor_msgs::PointCloud2Modifier anchorModifier;
     sensor_msgs::PointCloud2Modifier tagModifier;
     /**
@@ -67,7 +79,7 @@ class eliko_driver: public rclcpp::Node{
         int bytesRead;
         char buffer[1024]={0};
         auto publisherAnchor=node->create_publisher<sensor_msgs::msg::PointCloud2>("PointCloudAnchors",10);
-        send(clientSocket,getAnchorCommand,sizeof(getAnchorCommand),0);
+        send(clientSocket,GETANCHORCOMMAND,sizeof(GETANCHORCOMMAND),0);
         while((bytesRead=recv(clientSocket,buffer,sizeof(buffer),0))>0){
             std::vector<std::string> lines;
             std::istringstream iss(buffer);
@@ -93,7 +105,7 @@ class eliko_driver: public rclcpp::Node{
                         words.push_back(word);
                     }
                     if(words.size()>1){
-                        if(words[1]==AnchorCoord){
+                        if(words[1]==ANCHORCOORD){
                             fillCloudMessage(cloudAnchors,clock);
                             //To eliminate the '/r' from the end of the line    
                             std::istringstream ss2(words[10]);
@@ -141,9 +153,9 @@ class eliko_driver: public rclcpp::Node{
     void setReportList(int clientSocket,rclcpp::Node::SharedPtr node,rclcpp::Clock clock){
         char buffer[1024]={0};
         int bytesRead;
-       
+        auto publisherDistance=node->create_publisher<eliko_messages::msg::Distances>("Distances",10);
         auto publisherTag=node->create_publisher<sensor_msgs::msg::PointCloud2>("PointCloudTags",10);
-        send(clientSocket,getRRlCoordCommand,sizeof(getRRlCoordCommand),0);
+        send(clientSocket,GETRRLCOORDCOMMAND,sizeof(GETRRLCOORDCOMMAND),0);
         while((bytesRead=recv(clientSocket,buffer,sizeof(buffer),0))>0){
             fillCloudMessage(cloudTags,clock);
             std::vector<std::string> lines;
@@ -169,34 +181,56 @@ class eliko_driver: public rclcpp::Node{
                         words.push_back(word);
                     }
                     if(words.size()>1){
-                        if(words[1]==rr_l){
-                            RR_L distances; 
+                        if(words[1]==RR_L){
+                            /**
+                             * Here we get all the data received from the server under the identifier "RR_L" which
+                             * sends us the distances between the Tag and all the anchors. 
+                            */
+                            rr_l distances; 
+                            /**
+                             * This three next lines are used because the number of fields of this message is variable.
+                             * This variation depends on the number of anchors that participate in this particular message.
+                            */
                             int messageLength=words.size()-1;
-                            int numAnchorsRelatedMessages=messageLength-6;//Not sure if I have to substract 5 to get rid of
-                            //the fields that are not Anchor related or a bigger number.
-                            int numAnchorsDataMessages=(numAnchorsRelatedMessages/3);//Because there are 3 different types of Anchor fields.
+                            int numAnchorsRelatedMessages=messageLength-6;// Here we remove all of the fields that are not related to the anchors.
+                            int numAnchors=(numAnchorsRelatedMessages/3);//Here we obtain the number of anchors that are detecting the Tag.
+                            // We divide the total Anchor fields between 3 because there are 3 fields per Anchor
                             distances.seqNumber=stoi(words[2]);
                             distances.tagSN=words[3];
-                            for (int i = 0; i < numAnchorsDataMessages; i++)
+                            for (int i = 0; i < numAnchors; i++)
                             {
                                 distances.anchors[i].anchorID=words[4+(i*2)];
                                 distances.anchors[i].distance=stoi(words[5+(i*2)]);
+                                DistanceToTags.header.frame_id=this->frame_ID;
+                                DistanceToTags.header.stamp=clock.now();
+                                DistanceToTags.anchor_sn=distances.anchors[i].anchorID;
+                                DistanceToTags.distance=distances.anchors[i].distance;
+                                DistanceToTags.tag_sn=distances.tagSN;
+                                publisherDistance->publish(DistanceToTags);
                             }
-                            distances.timestamp=words[6+(numAnchorsDataMessages*2)];
-                            for(int i=0;i<numAnchorsDataMessages; i++)
+                            distances.timestamp=words[6+(numAnchors*2)];
+                            for(int i=0;i<numAnchors; i++)
                             {
-                                distances.flags[i].flag=words[7+(numAnchorsDataMessages*2)+i];
+                                distances.flags[i].flag=words[7+(numAnchors*2)+i];
                             }
                             std::istringstream ss2(words[messageLength-1]);
                             while (std::getline(ss2,word,'\r'))
+                                /** 
+                                 * We do this because every message ends with "\r\n" and when we split all of the messages,
+                                 * we get rid of '\n' but not '\r' which appears at the end of the last field.
+                                */  
                             {
                                 lastValues.push_back(word);
                             }
                             
                             distances.tagError.flag=lastValues[0];
                             std::cout<<distances.tagSN<<std::endl;
-                        }else if(words[1]==coord){
-                            COORD coordinates;
+                        }else if(words[1]==COORD){
+                            /**
+                             * Here, we obtain the data received from the server where the identifier is equal to "COORD".
+                             * This message sends the possition calculated for a tag. It is asynchronous and is sent everytime a new position has been calculated.
+                            */
+                            coord coordinates;
                             coordinates.seqNumber=stoi(words[2]);
                             coordinates.tagSN=words[3];
                             if(words[4]!=""){
@@ -218,8 +252,11 @@ class eliko_driver: public rclcpp::Node{
                                 publisherTag->publish(cloudTags);
                                 std::cout<<"X:"<<coordinates.tagCoords.X<<"Y:"<<coordinates.tagCoords.Y<<"Z:"<<coordinates.tagCoords.Z<<std::endl;
                             }                            
-                        }else if(words[1]=="EOF\r"){
-                            std::cout<<"returning"<<std::endl;
+                        }else if(words[1]==NOT_UNDERSTAND+'\r'){
+                            /**
+                             * In case the message the driver sent is not supported or unrecognized
+                            */
+                            std::cout<<"Message not recognized/supported"<<std::endl;
                             return;
                         }
                     }
@@ -236,7 +273,7 @@ class eliko_driver: public rclcpp::Node{
     void EULAStatus(int clientSocket){
         int bytesRead;
         char buffer[1024];
-        send(clientSocket,getEulaStatusCommand,sizeof(getEulaStatusCommand),0);
+        send(clientSocket,GETEUKASTATUSCOMMAND,sizeof(GETEUKASTATUSCOMMAND),0);
         while((bytesRead=recv(clientSocket,buffer,sizeof(buffer),0))>0){
             std::istringstream iss(buffer);
             std::vector<std::string>words;
@@ -248,7 +285,7 @@ class eliko_driver: public rclcpp::Node{
             if(words[1]=="NOT_GOOD"){
                 std::cout<<"There has been a problem"<<std::endl;
             }else if(words[2]=="NOT_ACCEPTED"){
-                send(clientSocket,acceptEulaCommand,sizeof(acceptEulaCommand),0);
+                send(clientSocket,ACCEPTEULACOMMAND,sizeof(ACCEPTEULACOMMAND),0);
                 EULAStatus(clientSocket);
             }else{
                 std::cout<<"EULA Accepted"<<std::endl;
@@ -264,7 +301,7 @@ class eliko_driver: public rclcpp::Node{
     /**
      * @brief eliko_driver Node. Used to try the driver.
     */
-    eliko_driver():Node("eliko_driver"),anchorModifier(cloudAnchors),tagModifier(cloudTags){
+    Eliko_driver():Node("eliko_driver"),anchorModifier(cloudAnchors),tagModifier(cloudTags){
         auto node=rclcpp::Node::make_shared("publisherData");
         rclcpp::Clock clock;
         this->declare_parameter("serverIP",DEFAULT_SERVER_IP);

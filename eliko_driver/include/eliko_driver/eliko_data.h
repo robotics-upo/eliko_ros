@@ -1,8 +1,9 @@
 /**
- * @file Eliko_data.h
+ * @file eliko_data.h
  * @brief This file contains all of the structures used by the driver to store and show the data obtained from the server.
 */
 #include <cstdint>
+#include <string>
 
 /**
  * @brief Stores the calculated distance from the tag to the Anchor.
@@ -40,7 +41,7 @@ struct Keyword
 
 
 //To save the distance between each anchor an the Tag
-struct RR_L
+struct rr_l
 {
     uint8_t seqNumber;
     std::string tagSN;
@@ -50,7 +51,7 @@ struct RR_L
     errorFlags tagError;
 };
 // To save the Tags position calculated in meters 
-struct COORD
+struct coord
 {
     uint8_t seqNumber;
     std::string tagSN;
@@ -61,9 +62,9 @@ struct COORD
 };
 
 // Like COORD but with some more details
-struct COORD_E
+struct coord_e
 {
-    COORD coords;
+    coord coords;
     std::string IP;
     //This three parameters save the Estimates for the accuracy in meters;
     double Xconfidence;

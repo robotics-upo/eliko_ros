@@ -11,9 +11,12 @@ find_package(ament_cmake REQUIRED)
 # further dependencies manually.
 # find_package(<dependency> REQUIRED)
 find_package(rosidl_default_generators REQUIRED)
+find_package(std_msgs)
 
 rosidl_generate_interfaces(${PROJECT_NAME}
   "msg/Distances.msg"
+  DEPENDENCIES std_msgs
+
  )
 
 if(BUILD_TESTING)

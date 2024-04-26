@@ -12,9 +12,11 @@ find_package(rclcpp REQUIRED)
 find_package(sensor_msgs REQUIRED)
 find_package(geometry_msgs REQUIRED)
 find_package(tf2_geometry_msgs REQUIRED)
+find_package(eliko_messages REQUIRED)
+find_package(std_msgs)
 
 add_executable(eliko_driver src/eliko_driver.cpp)
-ament_target_dependencies(eliko_driver rclcpp sensor_msgs tf2_geometry_msgs)
+ament_target_dependencies(eliko_driver rclcpp sensor_msgs tf2_geometry_msgs eliko_messages)
 
 install(TARGETS
   eliko_driver
