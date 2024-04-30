@@ -10,13 +10,13 @@
 */
 struct DistanceToAnchor
 {
-    std::string anchorID;
+    std::string anchor_id;
     int distance;
 };
 /**
  * @brief Stores all of the different error flags obtained from the server.
 */
-struct errorFlags
+struct ErrorFlags
 {
     std::string flag;
 };
@@ -24,123 +24,123 @@ struct errorFlags
 /**
  * @brief Stores the Tag`s X,Y,Z Coordinates calculated by the Anchors. 
 */
-struct coordinates{
-    float X;
-    float Y;
-    float Z;
+struct Coordinates{
+    float x;
+    float y;
+    float z;
 };
 
 struct Keyword
 {
     std::string keyword;
-    uint8_t update_intervalD;//Desired
-    uint8_t update_intervalC;//Configured
-    uint8_t update_intervalS;//Status
+    uint8_t update_interval_d;//Desired
+    uint8_t update_interval_c;//Configured
+    uint8_t update_interval_s;//Status
 
 };
 
 
 //To save the distance between each anchor an the Tag
-struct rr_l
+struct Rr_l
 {
-    uint8_t seqNumber;
-    std::string tagSN;
+    uint8_t seq_number;
+    std::string tag_sn;
     DistanceToAnchor anchors[10];
     std::string timestamp;
-    errorFlags flags[10];
-    errorFlags tagError;
+    ErrorFlags flags[10];
+    ErrorFlags tagError;
 };
 // To save the Tags position calculated in meters 
-struct coord
+struct Coord
 {
-    uint8_t seqNumber;
-    std::string tagSN;
-    coordinates tagCoords;
-    std::string Info;
+    uint8_t seq_number;
+    std::string tag_sn;
+    Coordinates tag_coords;
+    std::string info;
     double timestamp;
 
 };
 
 // Like COORD but with some more details
-struct coord_e
+struct CoordE
 {
-    coord coords;
-    std::string IP;
+    Coord coords;
+    std::string ip;
     //This three parameters save the Estimates for the accuracy in meters;
-    double Xconfidence;
-    double Yconfidence;
-    double Zconfidence;
+    double x_confidence;
+    double y_confidence;
+    double z_confidence;
 };
 /**
  * @brief Stores the values from the fields obtained when asking for the Anchor Coords
 */
-struct ANCHOR_COORD
+struct AnchorCoord
 {
-    std::string anchorID;
-    char anchorRole;
-    std::string anchorSN;
-    coordinates anchorPosition;
-    std::string lastConnectionEstablished;
-    std::string lastConnectionLost;
-    int connectionState;
+    std::string anchor_id;
+    char anchor_role;
+    std::string anchor_sn;
+    Coordinates anchor_position;
+    std::string last_connection_established;
+    std::string last_connection_lost;
+    int connection_state;
 };
 /**
  *  @brief This struct stores more information about the Anchors Coords
 */
-struct ANCHOR_COORD_E
+struct AnchorCoordE
 {
-    std::string anchorID;
-    char anchorRole;
-    std::string anchorSN;
-    uint8_t cellSize;
-    double hardwareVersion;
-    std::string anchorSWVersion;
-    std::string anchorModelString;
-    coordinates anchorPosition;
-    std::string lastConnectionEstablished;
-    std::string lastConnectionLost;
-    int connectionState;
+    std::string anchor_id;
+    char anchor_role;
+    std::string anchor_sn;
+    uint8_t cell_size;
+    double hardware_version;
+    std::string anchor_sw_version;
+    std::string anchor_model_string;
+    Coordinates anchor_position;
+    std::string last_connection_established;
+    std::string last_connection_lost;
+    int connection_state;
 };
 
 
-struct TAG{
-    std::string tagSN;
+struct Tag
+{
+    std::string tag_sn;
     std::string alias;
-    std::string positionMode;
-    double fixedHeight;
-    double updateRate;
+    std::string position_mode;
+    double fixed_height;
+    double update_rate;
     std::string timestamp;
-    coordinates lastPosition;
+    Coordinates last_position;
 };
 
-struct TAG_BATTERY
+struct TagBattery
 {
-    std::string tagSN;
+    std::string tag_sn;
     std::string alias;
-    uint16_t batteryVolt;
-    std::string batteryStatus;
+    uint16_t battery_volt;
+    std::string battery_status;
     std::string timestamp;
 };
 
-struct TAG_FILTERS
+struct TagFilters
 {
-    std::string tagSN;
+    std::string tag_sn;
     std::string alias;
-    char filterType;
-    uint8_t distanceFilterLength;
-    uint8_t firstCoordFilterLength;
-    uint8_t secondCoordFilterLength;
-    uint8_t distanceFilterLengthMS;
-    uint8_t firstCoordFilterLengthMS;
-    uint8_t secondCoordFilterLengthMS;
+    char filter_type;
+    uint8_t distance_filter_length;
+    uint8_t first_coord_filter_length;
+    uint8_t second_coord_filter_length;
+    uint8_t distance_filter_length_ms;
+    uint8_t first_coord_filter_length_ms;
+    uint8_t second_coord_filter_length_ms;
 };
 
-struct TAG_SAMPLE_INTERVALS
+struct TagSampleIntervals
 {
-    std::string tagSN;
+    std::string tag_sn;
     std::string alias;
-    Keyword High;
-    Keyword Low;
-
+    Keyword high;
+    Keyword low;
 };
 

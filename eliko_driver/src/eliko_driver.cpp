@@ -4,9 +4,10 @@
 #include "rclcpp/rclcpp.hpp"
 #include "../include/eliko_driver/eliko_driver.hpp"
 
-int main(int argc,char* argv[]){
+int main(int argc,char* argv[])
+{
     rclcpp::init(argc,argv);
-    rclcpp::spin(std::make_shared<Eliko_driver>());
+    rclcpp::spin(std::make_shared<ElikoDriver>());
     rclcpp::shutdown();
     return 0;
 }
