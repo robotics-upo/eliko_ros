@@ -61,18 +61,6 @@ class ElikoDriver: public rclcpp::Node
   sensor_msgs::PointCloud2Modifier tag_modifier_;
   
   /**
-   * @brief To Change from float to String
-   * @param n The number you want to transform.
-   * @returns The number turned into a string.
-  */
-  /*std::string transformIntoString(float n)
-  {
-    std::ostringstream buff;
-    buff<<n;
-    return buff.str();    
-  }*/
-
-  /**
    * @brief Gets all the fields from a line.
    * @param line The line we want to split into the different fields of the command
    * @returns A string vector with all the fields from the command
@@ -128,31 +116,6 @@ class ElikoDriver: public rclcpp::Node
       anchor.anchor_position.x=stof(words[5]);
       anchor.anchor_position.y=stof(words[6]);
       anchor.anchor_position.z=stof(words[7]);
-      /*
-      TODO: add a way to set the anchor coordinates. 
-      std::cout<<"Do you want to Set other Anchor Coordinates?(answer with 'y' or 'n')"<<std::endl;
-      std::cin>>answer;
-      if(answer=='y')
-      {
-        float new_x;
-        float new_y;
-        float new_z;
-        std::cout<<"Set the new coords of the Anchor: "<<anchor.anchor_sn<<std::endl;
-        std::cout<<"X Coord:"<<std::endl;
-        std::cin>>new_x;
-        std::cout<<"Y Coord:"<<std::endl;
-        std::cin>>new_y;
-        std::cout<<"Z Coord:"<<std::endl;
-        std::cin>>new_z;
-      }
-      else if(answer=='n')
-      {
-        std::cout<<"OK"<<std::endl;
-      }
-      else
-      {
-        std::cout<<"Not a valid response"<<std::endl;
-      }*/
     }
     else
     {
@@ -165,6 +128,17 @@ class ElikoDriver: public rclcpp::Node
     anchor.last_connection_lost=words[9];
     anchor.connection_state=stoi(words[words.size()-1]);
     return anchor;
+  }
+  void fillDistanceMessage(Rr_l distances,rclcpp::Clock clock)
+  {
+    for (int i=0;i<distances.num_anchors;i++)
+    {
+      all_distances_.header.frame_id=this->frame_id_;
+      all_distances_.header.stamp=clock.now();
+      all_distances_.anchor_distances[i].anchor_sn=distances.anchors[i].anchor_id;
+      all_distances_.anchor_distances[i].distance=distances.anchors[i].distance;
+      all_distances_.anchor_distances[i].tag_sn=distances.tag_sn;
+    }
   }
 
   /**
@@ -194,6 +168,7 @@ class ElikoDriver: public rclcpp::Node
         distances.anchors[j].distance=stoi(words[5+(i*2)]);
         distances.flags[j].flag=words[5+(num_anchors*2)+i];
         j++;
+        distances.num_anchors=j;
       }
       
     }
@@ -236,21 +211,6 @@ class ElikoDriver: public rclcpp::Node
     cloud_msg.is_bigendian=false;
     cloud_msg.height=POINTCLOUD_HEIGHT;
   }
-
-  /*
-  TODO
-  void setAnchorCoords(int client_socket,std::string anchor_sn,float x, float y, float z)
-  {
-    std::string message;
-    std::string x_string=transformIntoString(x);
-    std::string y_string=transformIntoString(y);
-    std::string z_string=transformIntoString(z);
-    message=SET_ANCHOR","+anchor_sn+","+x_string+","+y_string+","+z_string+"\r\n";
-    send(client_socket,&message,sizeof(message),0);
-    int bytes_read;
-  }
-  */
-
   /**
    * @brief Sends the message to obtain the Anchor Coords to the server, obtains all the data sent back by the server and stores them in a struct.
    * @param client_socket The Socket where the client is connected.
@@ -331,18 +291,7 @@ class ElikoDriver: public rclcpp::Node
             {
               Rr_l tag_distances;
               tag_distances=fillDistances(words);
-              int message_length=words.size();
-              int num_anchors_related_messages=message_length-6;
-              int num_anchors=(num_anchors_related_messages/3);
-              for (int i=0;i<num_anchors;i++)
-              {
-                all_distances_.header.frame_id=this->frame_id_;
-                all_distances_.header.stamp=clock.now();
-                all_distances_.anchor_distances[i].anchor_sn=tag_distances.anchors[i].anchor_id;
-                all_distances_.anchor_distances[i].distance=tag_distances.anchors[i].distance;
-                all_distances_.anchor_distances[i].tag_sn=tag_distances.tag_sn;
-                std::cout<<"Anchor: "<<tag_distances.anchors[i].anchor_id<<std::endl<<"Distance: "<<tag_distances.anchors[i].distance<<std::endl;
-              }
+              fillDistanceMessage(tag_distances,clock);
               publisher_distance->publish(all_distances_);
             }
             else if(words[1]==COORD)
@@ -356,10 +305,8 @@ class ElikoDriver: public rclcpp::Node
               if(words[4]!=""){
                 *pos_XT=coordinates.tag_coords.x;
                 *pos_YT=coordinates.tag_coords.y;
-                *pos_ZT=coordinates.tag_coords.z;
-                
+                *pos_ZT=coordinates.tag_coords.z;                
                 publisher_tag->publish(cloud_tags_);
-                std::cout<<"X:"<<coordinates.tag_coords.x<<"Y:"<<coordinates.tag_coords.y<<"Z:"<<coordinates.tag_coords.z<<std::endl;                             
               }
             }
             else if(words[1]==NOT_UNDERSTAND)
@@ -446,7 +393,6 @@ class ElikoDriver: public rclcpp::Node
       else
       {
         RCLCPP_DEBUG(node->get_logger(),"Conectado");
-        std::cout<<"Connected to the server."<<std::endl;   
         rclcpp::Clock clock;
         //To accept the EULA and receive all of the messages from eliko.
         EULAStatus(client_socket);  
@@ -460,7 +406,6 @@ class ElikoDriver: public rclcpp::Node
         anchor_modifier_.reserve(SIZE);
         anchor_modifier_.clear();
         getAnchorCoords(client_socket,node,clock);
-        std::cout<<"Anchors Obtained"<<std::endl;
         //Tag Cloud
         tag_modifier_.setPointCloud2Fields(3,
             "x",1,sensor_msgs::msg::PointField::FLOAT32,
@@ -470,7 +415,6 @@ class ElikoDriver: public rclcpp::Node
         tag_modifier_.reserve(SIZE);
         tag_modifier_.clear();
         setReportList(client_socket,node,clock);
-        std::cout<<"program ended"<<std::endl;           
       }    
     }
   }

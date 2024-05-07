@@ -49,11 +49,7 @@ struct Rr_l
   std::string timestamp;
   ErrorFlags flags[10];
   ErrorFlags tagError;
-};
-//To store multiple distances from the Tag to the Anchors.
-struct distances
-{
-  Rr_l distances[10];
+  uint8_t num_anchors;
 };
 // To save the Tags position calculated in meters 
 struct Coord
