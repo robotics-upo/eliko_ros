@@ -16,7 +16,7 @@
 #include <sensor_msgs/point_cloud2_iterator.hpp>
 #include "rclcpp/rclcpp.hpp"
 #include "eliko_data.h"
-#include "eliko_messages/msg/distances.hpp"
+#include "eliko_messages/msg/distances_list.hpp"
 /**
  * These rows store the values necessary to stablish communication with the server.
 */
@@ -56,7 +56,7 @@ class ElikoDriver: public rclcpp::Node
   private:
   sensor_msgs::msg::PointCloud2 cloud_tags_;
   sensor_msgs::msg::PointCloud2 cloud_anchors_;
-  eliko_messages::msg::Distances all_distances_;
+  eliko_messages::msg::DistancesList all_distances_;
   sensor_msgs::PointCloud2Modifier anchor_modifier_;
   sensor_msgs::PointCloud2Modifier tag_modifier_;
   
@@ -305,7 +305,7 @@ class ElikoDriver: public rclcpp::Node
   */
   void setReportList(int client_socket,rclcpp::Node::SharedPtr node,rclcpp::Clock clock)
   {
-    auto publisher_distance=node->create_publisher<eliko_messages::msg::Distances>("Distances",10);
+    auto publisher_distance=node->create_publisher<eliko_messages::msg::DistancesList>("Distances",10);
     auto publisher_tag=node->create_publisher<sensor_msgs::msg::PointCloud2>("PointCloudTags",10);
     send(client_socket,GET_RRL_COORD_COMMAND,sizeof(GET_RRL_COORD_COMMAND),0);
     char buffer[1024]={0};
@@ -338,12 +338,12 @@ class ElikoDriver: public rclcpp::Node
               {
                 all_distances_.header.frame_id=this->frame_id_;
                 all_distances_.header.stamp=clock.now();
-                all_distances_.anchor_sn=tag_distances.anchors[i].anchor_id;
-                all_distances_.distance=tag_distances.anchors[i].distance;
-                all_distances_.tag_sn=tag_distances.tag_sn;
-                publisher_distance->publish(all_distances_);
+                all_distances_.anchor_distances[i].anchor_sn=tag_distances.anchors[i].anchor_id;
+                all_distances_.anchor_distances[i].distance=tag_distances.anchors[i].distance;
+                all_distances_.anchor_distances[i].tag_sn=tag_distances.tag_sn;
                 std::cout<<"Anchor: "<<tag_distances.anchors[i].anchor_id<<std::endl<<"Distance: "<<tag_distances.anchors[i].distance<<std::endl;
               }
+              publisher_distance->publish(all_distances_);
             }
             else if(words[1]==COORD)
             {
@@ -357,6 +357,7 @@ class ElikoDriver: public rclcpp::Node
                 *pos_XT=coordinates.tag_coords.x;
                 *pos_YT=coordinates.tag_coords.y;
                 *pos_ZT=coordinates.tag_coords.z;
+                
                 publisher_tag->publish(cloud_tags_);
                 std::cout<<"X:"<<coordinates.tag_coords.x<<"Y:"<<coordinates.tag_coords.y<<"Z:"<<coordinates.tag_coords.z<<std::endl;                             
               }
