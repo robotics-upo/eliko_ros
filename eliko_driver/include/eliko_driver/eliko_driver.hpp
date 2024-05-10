@@ -17,6 +17,7 @@
 #include "rclcpp/rclcpp.hpp"
 #include "eliko_data.h"
 #include "eliko_messages/msg/distances_list.hpp"
+#include "geometry_msgs/msg/point_stamped.hpp"
 /**
  * These rows store the values necessary to stablish communication with the server.
 */
@@ -54,12 +55,12 @@
 class ElikoDriver: public rclcpp::Node
 {
   private:
-  sensor_msgs::msg::PointCloud2 cloud_tags_;
+  //sensor_msgs::msg::PointCloud2 cloud_tags_;
   sensor_msgs::msg::PointCloud2 cloud_anchors_;
   eliko_messages::msg::DistancesList all_distances_;
   sensor_msgs::PointCloud2Modifier anchor_modifier_;
-  sensor_msgs::PointCloud2Modifier tag_modifier_;
-  
+  //sensor_msgs::PointCloud2Modifier tag_modifier_;
+  std::unordered_map<std::string, rclcpp::Publisher<geometry_msgs::msg::PointStamped>::SharedPtr> tag_point_publishers_; 
   /**
    * @brief Gets all the fields from a line.
    * @param line The line we want to split into the different fields of the command
@@ -140,6 +141,19 @@ class ElikoDriver: public rclcpp::Node
       all_distances_.anchor_distances[i].tag_sn=distances.tag_sn;
     }
   }
+  /**
+   *  @brief This function searches for any publishers with the tag obtained when reading the coord messages received.
+   * If it does not find any, it creates a new one.
+   *  @param coord The coordinates data received from the server.  
+  */
+  void addPointPublisher(Coord coord)
+  {
+    std::string tag_sn=coord.tag_sn;
+    if(tag_point_publishers_.count(tag_sn)==0){
+      auto publisher= this->create_publisher<geometry_msgs::msg::PointStamped>("Tag_Coords",10);
+      tag_point_publishers_[coord.tag_sn]=publisher;
+    }
+  }
 
   /**
    * @brief Fills the Rr_l struct with all of the data received.
@@ -197,6 +211,7 @@ class ElikoDriver: public rclcpp::Node
     }
     return coordinates;
   }
+  
 
   /**
    * @brief Puts the headers to all of the PointCloud messages that will be sent to rviz.
@@ -266,23 +281,25 @@ class ElikoDriver: public rclcpp::Node
   void setReportList(int client_socket,rclcpp::Node::SharedPtr node,rclcpp::Clock clock)
   {
     auto publisher_distance=node->create_publisher<eliko_messages::msg::DistancesList>("Distances",10);
-    auto publisher_tag=node->create_publisher<sensor_msgs::msg::PointCloud2>("PointCloudTags",10);
+    //auto publisher_tag=node->create_publisher<sensor_msgs::msg::PointCloud2>("PointCloudTags",10);
     send(client_socket,GET_RRL_COORD_COMMAND,sizeof(GET_RRL_COORD_COMMAND),0);
     char buffer[1024]={0};
     int bytes_read;
     while((bytes_read=recv(client_socket,buffer,sizeof(buffer),0))>0)
     {
-      fillCloudMessage(cloud_tags_,clock);
+      //fillCloudMessage(cloud_tags_,clock);
       std::vector<std::string> lines;
       lines=getLines(buffer);
       if(lines.size()>0)
       {
-        tag_modifier_.resize(lines.size());
+        //tag_modifier_.resize(lines.size());
         for (auto& l:lines)
         {
+          /*
           sensor_msgs::PointCloud2Iterator<float>pos_XT(cloud_tags_,"x");
           sensor_msgs::PointCloud2Iterator<float>pos_YT(cloud_tags_,"y");
           sensor_msgs::PointCloud2Iterator<float>pos_ZT(cloud_tags_,"z");
+          */
           std::vector<std::string>words;
           words=getWords(l);
           if(words.size()>1)
@@ -302,12 +319,25 @@ class ElikoDriver: public rclcpp::Node
               */
               Coord coordinates;
               coordinates=fillCoords(words);
-              if(words[4]!=""){
+              /**
+               * This lines create the necessaty elements to fill the point_msg that we will use to show the Tags on Rviz
+              */
+              auto point_msg =std::make_shared<geometry_msgs::msg::PointStamped>();
+              point_msg->header=std_msgs::msg::Header();
+              point_msg->header.frame_id=this->frame_id_;
+              point_msg->header.stamp=clock.now();
+              point_msg->point.x=coordinates.tag_coords.x;
+              point_msg->point.y=coordinates.tag_coords.y;
+              point_msg->point.z=coordinates.tag_coords.z;
+              addPointPublisher(coordinates);
+              tag_point_publishers_[coordinates.tag_sn]->publish(*point_msg);
+             /*
+               if(words[4]!=""){
                 *pos_XT=coordinates.tag_coords.x;
                 *pos_YT=coordinates.tag_coords.y;
                 *pos_ZT=coordinates.tag_coords.z;                
                 publisher_tag->publish(cloud_tags_);
-              }
+              }*/
             }
             else if(words[1]==NOT_UNDERSTAND)
             {
@@ -363,7 +393,7 @@ class ElikoDriver: public rclcpp::Node
   /**
    * @brief eliko_driver Node. Used to try the driver.
   */
-  ElikoDriver():Node("eliko_driver"),anchor_modifier_(cloud_anchors_),tag_modifier_(cloud_tags_)
+  ElikoDriver():Node("eliko_driver"),anchor_modifier_(cloud_anchors_)//,tag_modifier_(cloud_tags_)
   {
     auto node=rclcpp::Node::make_shared("publisherData");
     rclcpp::Clock clock;
@@ -407,13 +437,13 @@ class ElikoDriver: public rclcpp::Node
         anchor_modifier_.clear();
         getAnchorCoords(client_socket,node,clock);
         //Tag Cloud
-        tag_modifier_.setPointCloud2Fields(3,
+     /*   tag_modifier_.setPointCloud2Fields(3,
             "x",1,sensor_msgs::msg::PointField::FLOAT32,
             "y",1,sensor_msgs::msg::PointField::FLOAT32,
             "z",1,sensor_msgs::msg::PointField::FLOAT32
         );
         tag_modifier_.reserve(SIZE);
-        tag_modifier_.clear();
+        tag_modifier_.clear();*/
         setReportList(client_socket,node,clock);
       }    
     }
