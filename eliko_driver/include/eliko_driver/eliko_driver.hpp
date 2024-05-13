@@ -150,7 +150,7 @@ class ElikoDriver: public rclcpp::Node
   {
     std::string tag_sn=coord.tag_sn;
     if(tag_point_publishers_.count(tag_sn)==0){
-      auto publisher= this->create_publisher<geometry_msgs::msg::PointStamped>("Tag_Coords",10);
+      auto publisher= this->create_publisher<geometry_msgs::msg::PointStamped>("Tag_Coords/T"+tag_sn,10);
       tag_point_publishers_[coord.tag_sn]=publisher;
     }
   }

@@ -11,7 +11,7 @@ After that, the driver sends a message to the server to accept the EULA to make 
 Once the EULA has been accepted, the driver sends two commands that will make the server start sending all the data related to the distances.\
 After that, the driver receives all of the data and sends it to the user in custom messages.
 
-This driver also creates a Point Cloud that shows the user the possition of the Tag in real time.
+This driver also creates multiple Points that shows the user the possition of each Tag in real time (The name of each tag is "T"+TagSerialNumber).
 
 About the code:
 ---
