@@ -13,7 +13,6 @@
 #include <vector>
 #include <sstream>
 #include<visualization_msgs/msg/marker.hpp>
-#include<visualization_msgs/msg/marker_array.hpp>
 #include "rclcpp/rclcpp.hpp"
 #include "eliko_data.h"
 #include "eliko_messages/msg/distances_list.hpp"
@@ -203,6 +202,72 @@ class ElikoDriver: public rclcpp::Node
     distances.tagError.flag=words[message_length-1];
     return distances;
   }
+  /**
+   * @brief This function fills the Tag message that will be sent to the user.
+   * @param message The message with all of the tags coordinates.
+  */
+    void fillTagMessage(Coord message,rclcpp::Clock clock)
+  {
+    eliko_messages::msg::TagCoords tag;
+    tag.tag_sn=message.tag_sn;
+    tag.info=message.info;
+    tag.x_coord=message.tag_coords.x;
+    tag.y_coord=message.tag_coords.y;
+    tag.z_coord=message.tag_coords.z;
+    tag.seq_number=message.seq_number;
+    tag.timestamp=message.timestamp;
+    all_tags_.header.frame_id=this->frame_id_;
+    all_tags_.header.stamp=clock.now();
+    all_tags_.tag_coords.push_back(tag);
+  }
+  /**
+   * @brief This function fills the anchor message that will be sent to the user.
+   * @param message The message with all of the anchor data.
+  */
+  void fillAnchorMessage(AnchorCoord message,rclcpp::Clock clock)
+  {
+    eliko_messages::msg::AnchorCoords anchor;
+    anchor.anchor_id=message.anchor_id;
+    anchor.anchor_sn=message.anchor_sn;
+    anchor.connection_state=message.connection_state;
+    anchor.role=message.anchor_role;
+    anchor.x_coord=message.anchor_position.x;
+    anchor.y_coord=message.anchor_position.y;
+    anchor.z_coord=message.anchor_position.z;
+    anchor.last_connection_established=message.last_connection_established;
+    anchor.last_connection_lost=message.last_connection_lost;
+    all_anchors_.header.frame_id=this->frame_id_;
+    all_anchors_.header.stamp=clock.now();
+    all_anchors_.anchor_coords.push_back(anchor);
+  }
+  /**
+   * @brief Creates all the Marker messages that will be sent to rviz to show the Anchor Position.
+   * @param anchors The anchor Struct message that will be used to fill the anchor possition messages.
+   * @param clock 
+  */
+  void fillMarkerMessage(AnchorCoord anchors,rclcpp::Clock clock)
+  {
+    //To only show the connected and configured anchors in Rviz
+    if(anchors.anchor_id!="NotConfigured"&&anchors.connection_state!=0) 
+    {
+      anchor_marker_.header.frame_id=this->frame_id_;
+      anchor_marker_.header.stamp=clock.now();
+      anchor_marker_.id=std::stoi(anchors.anchor_id,nullptr,16);
+      anchor_marker_.ns=anchors.anchor_sn;
+      anchor_marker_.type=visualization_msgs::msg::Marker::CYLINDER;
+      anchor_marker_.pose.position.x=anchors.anchor_position.x;
+      anchor_marker_.pose.position.y=anchors.anchor_position.y;
+      anchor_marker_.pose.position.z=anchors.anchor_position.z;
+      anchor_marker_.scale.x=0.2;
+      anchor_marker_.scale.y=0.2;
+      anchor_marker_.scale.z=0.2;
+      anchor_marker_.color.a=1.0;
+      anchor_marker_.color.r=1.0;
+      anchor_marker_.color.g=0.0;
+      anchor_marker_.color.b=0.0;
+    } 
+  }
+
 
   /**
    * @brief Fills the Coord struct with all the data received.
@@ -223,71 +288,6 @@ class ElikoDriver: public rclcpp::Node
       coordinates.timestamp=stoi(words[8]);
     }
     return coordinates;
-  }
-    /**
-   * @brief This function fills the Tag message that will be sent to the user.
-   * @param message The message with all of the tags coordinates.
-  */
-    void fillTagMessage(Coord message,rclcpp::Clock clock)
-  {
-    eliko_messages::msg::TagCoords tag;
-    tag.tag_sn=message.tag_sn;
-    tag.info=message.info;
-    tag.x_coord=message.tag_coords.x;
-    tag.y_coord=message.tag_coords.y;
-    tag.z_coord=message.tag_coords.z;
-    tag.seq_number=message.seq_number;
-    tag.timestamp=message.timestamp;
-    all_tags_.header.frame_id=this->frame_id_;
-    all_tags_.header.stamp=clock.now();
-    all_tags_.tag_coords.push_back(tag);
-  }
-  /**
-   * @brief This function fills the anchor message that will bw sent to the user.
-   * @param message The message with all of the anchor data.
-  */
-  void fillAnchorMessage(AnchorCoord message,rclcpp::Clock clock)
-  {
-    eliko_messages::msg::AnchorCoords anchor;
-    anchor.anchor_id=message.anchor_id;
-    anchor.anchor_sn=message.anchor_sn;
-    anchor.connection_state=message.connection_state;
-    anchor.role=message.anchor_role;
-    anchor.x_coord=message.anchor_position.x;
-    anchor.y_coord=message.anchor_position.y;
-    anchor.z_coord=message.anchor_position.z;
-    anchor.last_connection_established=message.last_connection_established;
-    anchor.last_connection_lost=message.last_connection_lost;
-    all_anchors_.header.frame_id=this->frame_id_;
-    all_anchors_.header.stamp=clock.now();
-    all_anchors_.anchor_coords.push_back(anchor);
-  }
-
-  /**
-   * @brief Creates all the Marker messages that will be sent to rviz.
-   * @param anchors The anchor Struct message that will be used to fill the anchor possition messages.
-   * @param clock 
-  */
-  void fillMarkerMessage(AnchorCoord anchors,rclcpp::Clock clock)
-  {
-    if(anchors.anchor_id!="NotConfigured")
-    {
-      anchor_marker_.header.frame_id=this->frame_id_;
-      anchor_marker_.header.stamp=clock.now();
-      anchor_marker_.id=std::stoi(anchors.anchor_id,nullptr,16);
-      anchor_marker_.ns=anchors.anchor_sn;
-      anchor_marker_.type=visualization_msgs::msg::Marker::CYLINDER;
-      anchor_marker_.pose.position.x=anchors.anchor_position.x;
-      anchor_marker_.pose.position.y=anchors.anchor_position.y;
-      anchor_marker_.pose.position.z=anchors.anchor_position.z;
-      anchor_marker_.scale.x=0.2;
-      anchor_marker_.scale.y=0.2;
-      anchor_marker_.scale.z=0.2;
-      anchor_marker_.color.a=1.0;
-      anchor_marker_.color.r=1.0;
-      anchor_marker_.color.g=0.0;
-      anchor_marker_.color.b=0.0;
-    } 
   }
 
   /**
@@ -380,14 +380,13 @@ class ElikoDriver: public rclcpp::Node
                * Here, we obtain the data received from the server where the identifier is equal to "COORD".
                * This message sends the possition calculated for a tag. It is asynchronous and is sent everytime a new position has been calculated.
               */
-
               //This next line is used to show the possition of the anchors in Rviz.(We use it here to update their possition or number without having to reload the driver)
-              getAnchorCoords(client_socket,node,clock);
+              
               std::cout<<"Coords"<<std::endl;
               Coord coordinates;
               coordinates=fillCoords(words);
               /**
-               * This lines create the necessary elements to fill the point_msg that we will use to show the Tags on Rviz
+               * This lines create the necessary elements to fill the point_msg that we will use to show the Tags on Rviz 
               */
               auto point_msg =std::make_shared<geometry_msgs::msg::PointStamped>();
               point_msg->header=std_msgs::msg::Header();
@@ -413,6 +412,7 @@ class ElikoDriver: public rclcpp::Node
             
           }
         }
+        getAnchorCoords(client_socket,node,clock);
       }
     }
     return;
@@ -457,7 +457,7 @@ class ElikoDriver: public rclcpp::Node
   /**
    * @brief eliko_driver Node. Used to try the driver.
   */
-  ElikoDriver():Node("eliko_driver")//,anchor_modifier_(cloud_anchors_),tag_modifier_(cloud_tags_)
+  ElikoDriver():Node("eliko_driver")
   {
     auto node=rclcpp::Node::make_shared("publisherData");
     rclcpp::Clock clock;
@@ -488,9 +488,7 @@ class ElikoDriver: public rclcpp::Node
       {
         RCLCPP_DEBUG(node->get_logger(),"Conectado");
         rclcpp::Clock clock;
-        //To accept the EULA and receive all of the messages from eliko.
         EULAStatus(client_socket);  
-        //To start obtaining the data from the tags and anchors.
         setReportList(client_socket,node,clock);
       }    
     }

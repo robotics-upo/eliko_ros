@@ -66,6 +66,14 @@ Firstly we will talk  about the files inside eliko_driver, and next, we will tal
         This file has the data structure for the distance message. (We store the Serial number of the Tag, The Serial number of the Anchor and the distance between them)
     * ### DistancesList.msg
         This file has the structure for the distanceList message that is composed by an array of Distances messages.
+    * ### AnchorCoords.msg
+        This file has the data structure for the AnchorCoords message, that sends the position of the anchor and some extra information.(Including the id, role, serial number and the last time it stablished and lost the connection)
+    * ### AnchorCoordsList.msg
+        This file has the structure for the AnchorCoordList message that is composed by an array of AnchorCoord messages.
+    * ### TagCoords.msg
+        This file has the structure for the TagCoords message, that sends the Tag's Coordinates and some extra information. (Like it's serial number and some error information)
+    * ### TagCoordsList.msg
+        This file has the structure for the TagCoordsList message that is composed by an array of TagCoords messages.
 
 Before Downloading the code:
 ---

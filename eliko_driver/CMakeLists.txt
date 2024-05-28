@@ -16,7 +16,7 @@ find_package(eliko_messages REQUIRED)
 find_package(std_msgs)
 
 add_executable(eliko_driver src/eliko_driver.cpp)
-ament_target_dependencies(eliko_driver rclcpp sensor_msgs tf2_geometry_msgs eliko_messages visualization_msgs)
+ament_target_dependencies(eliko_driver rclcpp tf2_geometry_msgs eliko_messages visualization_msgs)
 
 install(TARGETS
   eliko_driver
