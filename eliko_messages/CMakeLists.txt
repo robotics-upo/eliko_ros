@@ -16,8 +16,11 @@ find_package(std_msgs)
 rosidl_generate_interfaces(${PROJECT_NAME}
   "msg/Distances.msg"
   "msg/DistancesList.msg"
+  "msg/AnchorCoords.msg"
+  "msg/AnchorCoordsList.msg"
+  "msg/TagCoords.msg"
+  "msg/TagCoordsList.msg"
   DEPENDENCIES std_msgs
-  
  )
 
 if(BUILD_TESTING)

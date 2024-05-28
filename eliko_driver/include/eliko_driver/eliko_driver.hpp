@@ -2,7 +2,6 @@
  * @file eliko_driver.hpp
  * @brief This file includes all the functions that obtain the data of the anchors, tags and live possitioning of the tags.
 */
-
 #include <iostream>
 #include <stdio.h>
 #include <cstring>
@@ -13,10 +12,13 @@
 #include <unistd.h>
 #include <vector>
 #include <sstream>
-#include <sensor_msgs/point_cloud2_iterator.hpp>
+#include<visualization_msgs/msg/marker.hpp>
+#include<visualization_msgs/msg/marker_array.hpp>
 #include "rclcpp/rclcpp.hpp"
 #include "eliko_data.h"
 #include "eliko_messages/msg/distances_list.hpp"
+#include "eliko_messages/msg/anchor_coords_list.hpp"
+#include "eliko_messages/msg/tag_coords_list.hpp"
 #include "geometry_msgs/msg/point_stamped.hpp"
 /**
  * These rows store the values necessary to stablish communication with the server.
@@ -37,7 +39,7 @@
 #define COORD_E "COORD_E"
 #define NOT_UNDERSTAND "CANNOT_UNDERSTAND"
 /**
- * These next define rows store the messages the user (driver) sends to the server to obtain
+ * These next define rows store the messages the user (driver) can send to the server to obtain
  * some data and some of the responses the server sends.
 */
 #define GET_EULA_STATUS_COMMAND "$PEKIO,EULA,STATUS\r\n"
@@ -55,11 +57,11 @@
 class ElikoDriver: public rclcpp::Node
 {
   private:
-  //sensor_msgs::msg::PointCloud2 cloud_tags_;
-  sensor_msgs::msg::PointCloud2 cloud_anchors_;
+  visualization_msgs::msg::Marker anchor_marker_;
   eliko_messages::msg::DistancesList all_distances_;
-  sensor_msgs::PointCloud2Modifier anchor_modifier_;
-  //sensor_msgs::PointCloud2Modifier tag_modifier_;
+  eliko_messages::msg::AnchorCoordsList all_anchors_;
+  eliko_messages::msg::TagCoordsList all_tags_;
+
   std::unordered_map<std::string, rclcpp::Publisher<geometry_msgs::msg::PointStamped>::SharedPtr> tag_point_publishers_; 
   /**
    * @brief Gets all the fields from a line.
@@ -111,7 +113,6 @@ class ElikoDriver: public rclcpp::Node
     anchor.anchor_id=words[2];
     anchor.anchor_role=words[3][0];
     anchor.anchor_sn=words[4];
-    //char  answer;
     if(words[5]!="")
     {
       anchor.anchor_position.x=stof(words[5]);
@@ -120,26 +121,35 @@ class ElikoDriver: public rclcpp::Node
     }
     else
     {
+      anchor.anchor_id="NotConfigured";
       anchor.anchor_position.x=0;
       anchor.anchor_position.y=0;
       anchor.anchor_position.z=0;
     }
-
     anchor.last_connection_established=words[8];
     anchor.last_connection_lost=words[9];
     anchor.connection_state=stoi(words[words.size()-1]);
     return anchor;
   }
+  /**
+   * @brief This function filld the distance Structure with the distance of each anchor to each one of the Tags.
+   * @param distances The distance data received from the server.
+  */
   void fillDistanceMessage(Rr_l distances,rclcpp::Clock clock)
   {
-    for (int i=0;i<distances.num_anchors;i++)
+    eliko_messages::msg::Distances dist;
+    if (distances.num_anchors>0)
     {
       all_distances_.header.frame_id=this->frame_id_;
       all_distances_.header.stamp=clock.now();
-      all_distances_.anchor_distances[i].anchor_sn=distances.anchors[i].anchor_id;
-      all_distances_.anchor_distances[i].distance=distances.anchors[i].distance;
-      all_distances_.anchor_distances[i].tag_sn=distances.tag_sn;
-    }
+      for (int i=0;i<distances.num_anchors;i++)
+      {
+        dist.anchor_sn=distances.anchors[i].anchor_id;
+        dist.distance=distances.anchors[i].distance;
+        dist.tag_sn=distances.tag_sn;
+        all_distances_.anchor_distances.push_back(dist);
+      }
+    }  
   }
   /**
    *  @brief This function searches for any publishers with the tag obtained when reading the coord messages received.
@@ -154,7 +164,6 @@ class ElikoDriver: public rclcpp::Node
       tag_point_publishers_[coord.tag_sn]=publisher;
     }
   }
-
   /**
    * @brief Fills the Rr_l struct with all of the data received.
    * @param words The vector string with all the data received.
@@ -163,6 +172,7 @@ class ElikoDriver: public rclcpp::Node
   Rr_l fillDistances(std::vector<std::string> words)
   {
     Rr_l distances;
+    int j=0;//To count the actual number of anchors that take part in obtaining the distance from the Tag.
     /**
      * This three next lines are used because the number of fields of this message is variable.
      * This variation depends on the number of anchors that participate in this particular message.
@@ -173,19 +183,22 @@ class ElikoDriver: public rclcpp::Node
     // We divide the total Anchor fields between 3 because there are 3 fields per Anchor
     distances.seq_number=stoi(words[2]);
     distances.tag_sn=words[3];
-    for (int i = 0, j=0; i < num_anchors; i++)
+    for (int i = 0; i < num_anchors; i++)
     {
-      
+      //Because sometimes the server sends more anchor fields that the ones related to the tag.
       if(words[4+(i*2)]!="0x000000")
       {
-        distances.anchors[j].anchor_id=words[4+(i*2)];
-        distances.anchors[j].distance=stoi(words[5+(i*2)]);
-        distances.flags[j].flag=words[5+(num_anchors*2)+i];
+        DistanceToAnchor distance;
+        ErrorFlags error;
+        distance.anchor_id=words[4+(i*2)];
+        distance.distance=stoi(words[5+(i*2)]);
+        error.flag=words[5+(num_anchors*2)+i];
         j++;
-        distances.num_anchors=j;
-      }
-      
+        distances.anchors.push_back(distance);
+        distances.flags.push_back(error);
+      }  
     }
+    distances.num_anchors=j;
     distances.timestamp=words[4+(num_anchors*2)];
     distances.tagError.flag=words[message_length-1];
     return distances;
@@ -211,21 +224,72 @@ class ElikoDriver: public rclcpp::Node
     }
     return coordinates;
   }
-  
+    /**
+   * @brief This function fills the Tag message that will be sent to the user.
+   * @param message The message with all of the tags coordinates.
+  */
+    void fillTagMessage(Coord message,rclcpp::Clock clock)
+  {
+    eliko_messages::msg::TagCoords tag;
+    tag.tag_sn=message.tag_sn;
+    tag.info=message.info;
+    tag.x_coord=message.tag_coords.x;
+    tag.y_coord=message.tag_coords.y;
+    tag.z_coord=message.tag_coords.z;
+    tag.seq_number=message.seq_number;
+    tag.timestamp=message.timestamp;
+    all_tags_.header.frame_id=this->frame_id_;
+    all_tags_.header.stamp=clock.now();
+    all_tags_.tag_coords.push_back(tag);
+  }
+  /**
+   * @brief This function fills the anchor message that will bw sent to the user.
+   * @param message The message with all of the anchor data.
+  */
+  void fillAnchorMessage(AnchorCoord message,rclcpp::Clock clock)
+  {
+    eliko_messages::msg::AnchorCoords anchor;
+    anchor.anchor_id=message.anchor_id;
+    anchor.anchor_sn=message.anchor_sn;
+    anchor.connection_state=message.connection_state;
+    anchor.role=message.anchor_role;
+    anchor.x_coord=message.anchor_position.x;
+    anchor.y_coord=message.anchor_position.y;
+    anchor.z_coord=message.anchor_position.z;
+    anchor.last_connection_established=message.last_connection_established;
+    anchor.last_connection_lost=message.last_connection_lost;
+    all_anchors_.header.frame_id=this->frame_id_;
+    all_anchors_.header.stamp=clock.now();
+    all_anchors_.anchor_coords.push_back(anchor);
+  }
 
   /**
-   * @brief Puts the headers to all of the PointCloud messages that will be sent to rviz.
-   * @param cloud_msg The pointcloud message that needs to be filled.
+   * @brief Creates all the Marker messages that will be sent to rviz.
+   * @param anchors The anchor Struct message that will be used to fill the anchor possition messages.
+   * @param clock 
   */
-  void fillCloudMessage(sensor_msgs::msg::PointCloud2 &cloud_msg,rclcpp::Clock clock)
+  void fillMarkerMessage(AnchorCoord anchors,rclcpp::Clock clock)
   {
-    cloud_msg.header=std_msgs::msg::Header();
-    cloud_msg.header.frame_id=this->frame_id_;
-    cloud_msg.header.stamp=clock.now();
-    cloud_msg.is_dense=false;
-    cloud_msg.is_bigendian=false;
-    cloud_msg.height=POINTCLOUD_HEIGHT;
+    if(anchors.anchor_id!="NotConfigured")
+    {
+      anchor_marker_.header.frame_id=this->frame_id_;
+      anchor_marker_.header.stamp=clock.now();
+      anchor_marker_.id=std::stoi(anchors.anchor_id,nullptr,16);
+      anchor_marker_.ns=anchors.anchor_sn;
+      anchor_marker_.type=visualization_msgs::msg::Marker::CYLINDER;
+      anchor_marker_.pose.position.x=anchors.anchor_position.x;
+      anchor_marker_.pose.position.y=anchors.anchor_position.y;
+      anchor_marker_.pose.position.z=anchors.anchor_position.z;
+      anchor_marker_.scale.x=0.2;
+      anchor_marker_.scale.y=0.2;
+      anchor_marker_.scale.z=0.2;
+      anchor_marker_.color.a=1.0;
+      anchor_marker_.color.r=1.0;
+      anchor_marker_.color.g=0.0;
+      anchor_marker_.color.b=0.0;
+    } 
   }
+
   /**
    * @brief Sends the message to obtain the Anchor Coords to the server, obtains all the data sent back by the server and stores them in a struct.
    * @param client_socket The Socket where the client is connected.
@@ -233,7 +297,8 @@ class ElikoDriver: public rclcpp::Node
   */
   void getAnchorCoords(int client_socket,rclcpp::Node::SharedPtr node,rclcpp::Clock clock)
   {
-    auto publisher_anchor=node->create_publisher<sensor_msgs::msg::PointCloud2>("PointCloudAnchors",10);
+    auto publisher_anchor_message=node->create_publisher<eliko_messages::msg::AnchorCoordsList>("AnchorCoords",10);
+    auto publisher_anchor=node->create_publisher<visualization_msgs::msg::Marker>("MarkerCloudAnchors",10);
     send(client_socket,GET_ANCHOR_COMMAND,sizeof(GET_ANCHOR_COMMAND),0);
     int bytes_read;
     char buffer[1024]={0};
@@ -245,27 +310,25 @@ class ElikoDriver: public rclcpp::Node
       {
         for (auto& l:lines)
         {
-          sensor_msgs::PointCloud2Iterator<float>pos_X(cloud_anchors_,"x");
-          sensor_msgs::PointCloud2Iterator<float>pos_Y(cloud_anchors_,"y");
-          sensor_msgs::PointCloud2Iterator<float>pos_Z(cloud_anchors_,"z");
-          anchor_modifier_.resize(lines.size());
           std::vector<std::string>words;
           words=getWords(l);
           if(words.size()>1)
           {
             if(words[1]==ANCHOR_COORD)
             {
-              fillCloudMessage(cloud_anchors_,clock);
+ 
               AnchorCoord anchor;
               anchor=fillAnchorCoord(words);
-              //To fill up the pointCloud
-              *pos_X=anchor.anchor_position.x;
-              *pos_Y=anchor.anchor_position.y;
-              *pos_Z=anchor.anchor_position.z;
-              publisher_anchor->publish(cloud_anchors_);
+              fillMarkerMessage(anchor,clock);
+              fillAnchorMessage(anchor,clock);
+              publisher_anchor->publish(anchor_marker_);
             }
             else if (words[1]=="EOF")
+            { 
+              publisher_anchor_message->publish(all_anchors_);
               return;
+            }
+            
           }
         }
       }
@@ -277,38 +340,38 @@ class ElikoDriver: public rclcpp::Node
    * Once all the data is stored. it cleans the buffer.
    * @param client_socket The socket where the conversation is maintained.
    * @param node The driver node to create the different publishers. 
+   * @param clock 
   */
   void setReportList(int client_socket,rclcpp::Node::SharedPtr node,rclcpp::Clock clock)
   {
+    auto publisherTagCoords=node->create_publisher<eliko_messages::msg::TagCoordsList>("TagCoords",10);
     auto publisher_distance=node->create_publisher<eliko_messages::msg::DistancesList>("Distances",10);
-    //auto publisher_tag=node->create_publisher<sensor_msgs::msg::PointCloud2>("PointCloudTags",10);
     send(client_socket,GET_RRL_COORD_COMMAND,sizeof(GET_RRL_COORD_COMMAND),0);
     char buffer[1024]={0};
     int bytes_read;
     while((bytes_read=recv(client_socket,buffer,sizeof(buffer),0))>0)
     {
-      //fillCloudMessage(cloud_tags_,clock);
+      /**
+        * To show the coordinates of the anchors in the view
+      */
       std::vector<std::string> lines;
       lines=getLines(buffer);
       if(lines.size()>0)
       {
-        //tag_modifier_.resize(lines.size());
         for (auto& l:lines)
         {
-          /*
-          sensor_msgs::PointCloud2Iterator<float>pos_XT(cloud_tags_,"x");
-          sensor_msgs::PointCloud2Iterator<float>pos_YT(cloud_tags_,"y");
-          sensor_msgs::PointCloud2Iterator<float>pos_ZT(cloud_tags_,"z");
-          */
           std::vector<std::string>words;
           words=getWords(l);
           if(words.size()>1)
           {
             if(words[1]==RR_L)
             {
+              std::cout<<"Distances"<<std::endl;
               Rr_l tag_distances;
+
               tag_distances=fillDistances(words);
               fillDistanceMessage(tag_distances,clock);
+
               publisher_distance->publish(all_distances_);
             }
             else if(words[1]==COORD)
@@ -317,10 +380,14 @@ class ElikoDriver: public rclcpp::Node
                * Here, we obtain the data received from the server where the identifier is equal to "COORD".
                * This message sends the possition calculated for a tag. It is asynchronous and is sent everytime a new position has been calculated.
               */
+
+              //This next line is used to show the possition of the anchors in Rviz.(We use it here to update their possition or number without having to reload the driver)
+              getAnchorCoords(client_socket,node,clock);
+              std::cout<<"Coords"<<std::endl;
               Coord coordinates;
               coordinates=fillCoords(words);
               /**
-               * This lines create the necessaty elements to fill the point_msg that we will use to show the Tags on Rviz
+               * This lines create the necessary elements to fill the point_msg that we will use to show the Tags on Rviz
               */
               auto point_msg =std::make_shared<geometry_msgs::msg::PointStamped>();
               point_msg->header=std_msgs::msg::Header();
@@ -329,15 +396,11 @@ class ElikoDriver: public rclcpp::Node
               point_msg->point.x=coordinates.tag_coords.x;
               point_msg->point.y=coordinates.tag_coords.y;
               point_msg->point.z=coordinates.tag_coords.z;
+              fillTagMessage(coordinates,clock);
               addPointPublisher(coordinates);
+              publisherTagCoords->publish(all_tags_);
               tag_point_publishers_[coordinates.tag_sn]->publish(*point_msg);
-             /*
-               if(words[4]!=""){
-                *pos_XT=coordinates.tag_coords.x;
-                *pos_YT=coordinates.tag_coords.y;
-                *pos_ZT=coordinates.tag_coords.z;                
-                publisher_tag->publish(cloud_tags_);
-              }*/
+              
             }
             else if(words[1]==NOT_UNDERSTAND)
             {
@@ -347,6 +410,7 @@ class ElikoDriver: public rclcpp::Node
               std::cout<<"Message not recognized/supported"<<std::endl;
               return;
             }
+            
           }
         }
       }
@@ -393,7 +457,7 @@ class ElikoDriver: public rclcpp::Node
   /**
    * @brief eliko_driver Node. Used to try the driver.
   */
-  ElikoDriver():Node("eliko_driver"),anchor_modifier_(cloud_anchors_)//,tag_modifier_(cloud_tags_)
+  ElikoDriver():Node("eliko_driver")//,anchor_modifier_(cloud_anchors_),tag_modifier_(cloud_tags_)
   {
     auto node=rclcpp::Node::make_shared("publisherData");
     rclcpp::Clock clock;
@@ -426,24 +490,7 @@ class ElikoDriver: public rclcpp::Node
         rclcpp::Clock clock;
         //To accept the EULA and receive all of the messages from eliko.
         EULAStatus(client_socket);  
-        //Set fields and size of every PointCloud
-        //AnchorCloud
-        anchor_modifier_.setPointCloud2Fields(3,
-            "x",1,sensor_msgs::msg::PointField::FLOAT32,
-            "y",1,sensor_msgs::msg::PointField::FLOAT32,
-            "z",1,sensor_msgs::msg::PointField::FLOAT32
-        );
-        anchor_modifier_.reserve(SIZE);
-        anchor_modifier_.clear();
-        getAnchorCoords(client_socket,node,clock);
-        //Tag Cloud
-     /*   tag_modifier_.setPointCloud2Fields(3,
-            "x",1,sensor_msgs::msg::PointField::FLOAT32,
-            "y",1,sensor_msgs::msg::PointField::FLOAT32,
-            "z",1,sensor_msgs::msg::PointField::FLOAT32
-        );
-        tag_modifier_.reserve(SIZE);
-        tag_modifier_.clear();*/
+        //To start obtaining the data from the tags and anchors.
         setReportList(client_socket,node,clock);
       }    
     }

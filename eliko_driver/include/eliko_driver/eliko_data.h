@@ -45,9 +45,9 @@ struct Rr_l
 {
   uint8_t seq_number;
   std::string tag_sn;
-  DistanceToAnchor anchors[10];
+  std::vector<DistanceToAnchor> anchors;
   std::string timestamp;
-  ErrorFlags flags[10];
+  std::vector<ErrorFlags> flags;
   ErrorFlags tagError;
   uint8_t num_anchors;
 };
