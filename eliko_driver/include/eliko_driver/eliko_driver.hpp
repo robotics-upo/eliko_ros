@@ -381,7 +381,7 @@ class ElikoDriver: public rclcpp::Node
                * This message sends the possition calculated for a tag. It is asynchronous and is sent everytime a new position has been calculated.
               */
               //This next line is used to show the possition of the anchors in Rviz.(We use it here to update their possition or number without having to reload the driver)
-              
+              getAnchorCoords(client_socket,node,clock);
               std::cout<<"Coords"<<std::endl;
               Coord coordinates;
               coordinates=fillCoords(words);
@@ -399,7 +399,6 @@ class ElikoDriver: public rclcpp::Node
               addPointPublisher(coordinates);
               publisherTagCoords->publish(all_tags_);
               tag_point_publishers_[coordinates.tag_sn]->publish(*point_msg);
-              
             }
             else if(words[1]==NOT_UNDERSTAND)
             {
@@ -412,7 +411,7 @@ class ElikoDriver: public rclcpp::Node
             
           }
         }
-        getAnchorCoords(client_socket,node,clock);
+       
       }
     }
     return;
