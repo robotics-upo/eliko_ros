@@ -1,6 +1,15 @@
 Eliko_driver:
 ================
-
+<table width="600">
+    <tr>
+        <td width="50%">
+<img src="https://github.com/robotics-upo/eliko_ros/blob/pose_stamp_publisher/resources/Images/eliko_devices.jpg" alt="2d" width="400"/>
+        </td>
+        <td width="50%">
+<img src="https://github.com/robotics-upo/eliko_ros/blob/pose_stamp_publisher/resources/Images/eliko_scheme.jpeg" alt="3d" width="400"/>
+        </td>
+    </tr>
+</table>
 Introduction
 ---
 This is a ROS 2 driver for the Eliko RTLS created by the Service Robotics Lab from the Pablo de Olavide University (Spain).
