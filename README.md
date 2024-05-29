@@ -6,7 +6,7 @@ Eliko_driver:
 <img src="https://github.com/robotics-upo/eliko_ros/blob/master/resources/Images/eliko_device.jpg" alt="2d" width="400"/>
         </td>
         <td width="50%">
-<img src="https://github.com/robotics-upo/eliko_ros/blob/master/resources/Images/eliko_device.jpg" alt="3d" width="400"/>
+<img src="https://github.com/robotics-upo/eliko_ros/blob/master/resources/Images/eliko_scheme.jpg" alt="3d" width="400"/>
         </td>
     </tr>
 </table>
