@@ -4,15 +4,16 @@
 */
 #include <iostream>
 #include <stdio.h>
+#include <chrono>
 #include <cstring>
 #include <sys/socket.h>
 #include <sys/types.h>
 #include <netinet/in.h>
 #include <arpa/inet.h>
-#include <unistd.h>
+#include <unistd.h> 
 #include <vector>
 #include <sstream>
-#include<visualization_msgs/msg/marker.hpp>
+#include <visualization_msgs/msg/marker.hpp>
 #include "rclcpp/rclcpp.hpp"
 #include "eliko_data.h"
 #include "eliko_messages/msg/distances_list.hpp"
@@ -60,8 +61,28 @@ class ElikoDriver: public rclcpp::Node
   eliko_messages::msg::DistancesList all_distances_;
   eliko_messages::msg::AnchorCoordsList all_anchors_;
   eliko_messages::msg::TagCoordsList all_tags_;
-
   std::unordered_map<std::string, rclcpp::Publisher<geometry_msgs::msg::PointStamped>::SharedPtr> tag_point_publishers_; 
+
+  /**
+   * @brief Searches for a word inside a phrase and returns true or false depending if it founds it.
+   * @param phrase The phrase that may have the word you are searching for.
+   * @param word The word you are searching for.
+  */
+  bool containsWord(const std::string& phrase,const std::string& word){
+    return phrase.find(word)!=std::string::npos;
+  }
+
+  /**
+   * @brief Decides if the String given is an error or a warning.
+   * @param phrase The String we want to see if its an error. 
+  */
+  bool isItAnError(const std::string& phrase){
+    if(containsWord(phrase,"Error")||(containsWord(phrase,"Math")&&!containsWord(phrase,"Fallback")))
+      return true;
+    else
+      return false;
+  }
+
   /**
    * @brief Gets all the fields from a line.
    * @param line The line we want to split into the different fields of the command
@@ -78,7 +99,8 @@ class ElikoDriver: public rclcpp::Node
     while (std::getline(iss,line_without_r,'\r'))
       sublines.push_back(line_without_r);
     //To get all the fields in the line
-    if(sublines.size()>0){
+    if(sublines.size()>0)
+    {
       std::istringstream iss2(sublines[0]);
       while (std::getline(iss2,word,','))
       words.push_back(word);
@@ -141,6 +163,7 @@ class ElikoDriver: public rclcpp::Node
     {
       all_distances_.header.frame_id=this->frame_id_;
       all_distances_.header.stamp=clock.now();
+      all_distances_.anchor_distances.clear();
       for (int i=0;i<distances.num_anchors;i++)
       {
         dist.anchor_sn=distances.anchors[i].anchor_id;
@@ -150,6 +173,7 @@ class ElikoDriver: public rclcpp::Node
       }
     }  
   }
+
   /**
    *  @brief This function searches for any publishers with the tag obtained when reading the coord messages received.
    * If it does not find any, it creates a new one.
@@ -158,11 +182,13 @@ class ElikoDriver: public rclcpp::Node
   void addPointPublisher(Coord coord)
   {
     std::string tag_sn=coord.tag_sn;
-    if(tag_point_publishers_.count(tag_sn)==0){
+    if(tag_point_publishers_.count(tag_sn)==0)
+    {
       auto publisher= this->create_publisher<geometry_msgs::msg::PointStamped>("Tag_Coords/T"+tag_sn,10);
       tag_point_publishers_[coord.tag_sn]=publisher;
     }
   }
+
   /**
    * @brief Fills the Rr_l struct with all of the data received.
    * @param words The vector string with all the data received.
@@ -202,11 +228,12 @@ class ElikoDriver: public rclcpp::Node
     distances.tagError.flag=words[message_length-1];
     return distances;
   }
+
   /**
    * @brief This function fills the Tag message that will be sent to the user.
    * @param message The message with all of the tags coordinates.
   */
-    void fillTagMessage(Coord message,rclcpp::Clock clock)
+  void fillTagMessage(Coord message,rclcpp::Clock clock)
   {
     eliko_messages::msg::TagCoords tag;
     tag.tag_sn=message.tag_sn;
@@ -220,6 +247,7 @@ class ElikoDriver: public rclcpp::Node
     all_tags_.header.stamp=clock.now();
     all_tags_.tag_coords.push_back(tag);
   }
+
   /**
    * @brief This function fills the anchor message that will be sent to the user.
    * @param message The message with all of the anchor data.
@@ -240,6 +268,7 @@ class ElikoDriver: public rclcpp::Node
     all_anchors_.header.stamp=clock.now();
     all_anchors_.anchor_coords.push_back(anchor);
   }
+
   /**
    * @brief Creates all the Marker messages that will be sent to rviz to show the Anchor Position.
    * @param anchors The anchor Struct message that will be used to fill the anchor possition messages.
@@ -267,7 +296,6 @@ class ElikoDriver: public rclcpp::Node
       anchor_marker_.color.b=0.0;
     } 
   }
-
 
   /**
    * @brief Fills the Coord struct with all the data received.
@@ -324,7 +352,7 @@ class ElikoDriver: public rclcpp::Node
               publisher_anchor->publish(anchor_marker_);
             }
             else if (words[1]=="EOF")
-            { 
+            {
               publisher_anchor_message->publish(all_anchors_);
               return;
             }
@@ -380,25 +408,25 @@ class ElikoDriver: public rclcpp::Node
                * Here, we obtain the data received from the server where the identifier is equal to "COORD".
                * This message sends the possition calculated for a tag. It is asynchronous and is sent everytime a new position has been calculated.
               */
-              //This next line is used to show the possition of the anchors in Rviz.(We use it here to update their possition or number without having to reload the driver)
-              getAnchorCoords(client_socket,node,clock);
-              std::cout<<"Coords"<<std::endl;
               Coord coordinates;
               coordinates=fillCoords(words);
-              /**
-               * This lines create the necessary elements to fill the point_msg that we will use to show the Tags on Rviz 
-              */
-              auto point_msg =std::make_shared<geometry_msgs::msg::PointStamped>();
-              point_msg->header=std_msgs::msg::Header();
-              point_msg->header.frame_id=this->frame_id_;
-              point_msg->header.stamp=clock.now();
-              point_msg->point.x=coordinates.tag_coords.x;
-              point_msg->point.y=coordinates.tag_coords.y;
-              point_msg->point.z=coordinates.tag_coords.z;
-              fillTagMessage(coordinates,clock);
-              addPointPublisher(coordinates);
-              publisherTagCoords->publish(all_tags_);
-              tag_point_publishers_[coordinates.tag_sn]->publish(*point_msg);
+              if(!isItAnError(coordinates.info)) //To see if the string received is an error or a warning sent by the Server
+              {
+                /**
+                * This lines create the necessary elements to fill the point_msg that we will use to show the Tags on Rviz 
+                */
+                auto point_msg =std::make_shared<geometry_msgs::msg::PointStamped>();
+                point_msg->header=std_msgs::msg::Header();
+                point_msg->header.frame_id=this->frame_id_;
+                point_msg->header.stamp=clock.now();
+                point_msg->point.x=coordinates.tag_coords.x;
+                point_msg->point.y=coordinates.tag_coords.y;
+                point_msg->point.z=coordinates.tag_coords.z;
+                fillTagMessage(coordinates,clock);
+                addPointPublisher(coordinates);
+                publisherTagCoords->publish(all_tags_);
+                tag_point_publishers_[coordinates.tag_sn]->publish(*point_msg);
+              }
             }
             else if(words[1]==NOT_UNDERSTAND)
             {
@@ -458,6 +486,8 @@ class ElikoDriver: public rclcpp::Node
   */
   ElikoDriver():Node("eliko_driver")
   {
+    auto start=std::chrono::high_resolution_clock::now();
+    std::chrono::seconds duration(14);
     auto node=rclcpp::Node::make_shared("publisherData");
     rclcpp::Clock clock;
     this->declare_parameter("serverIP",DEFAULT_SERVER_IP);
@@ -487,7 +517,11 @@ class ElikoDriver: public rclcpp::Node
       {
         RCLCPP_DEBUG(node->get_logger(),"Conectado");
         rclcpp::Clock clock;
-        EULAStatus(client_socket);  
+        EULAStatus(client_socket);
+        while (std::chrono::high_resolution_clock::now()- start<duration)
+        {
+          getAnchorCoords(client_socket,node,clock);
+        } 
         setReportList(client_socket,node,clock);
       }    
     }

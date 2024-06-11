@@ -1,0 +1,3 @@
+<launch>
+    <executable cmd="ros2 bag record  /Distances /MarkerCloudAnchors /TagCoords /AnchorCoords"/>
+</launch>
