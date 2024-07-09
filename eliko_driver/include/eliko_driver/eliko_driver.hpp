@@ -19,6 +19,7 @@
 #include "eliko_messages/msg/distances_list.hpp"
 #include "eliko_messages/msg/anchor_coords_list.hpp"
 #include "eliko_messages/msg/tag_coords_list.hpp"
+#include "std_msgs/msg/int32.hpp"
 #include "geometry_msgs/msg/point_stamped.hpp"
 /**
  * These rows store the values necessary to stablish communication with the server.
@@ -62,7 +63,8 @@ class ElikoDriver: public rclcpp::Node
   eliko_messages::msg::AnchorCoordsList all_anchors_;
   eliko_messages::msg::TagCoordsList all_tags_;
   std::unordered_map<std::string, rclcpp::Publisher<geometry_msgs::msg::PointStamped>::SharedPtr> tag_point_publishers_; 
-
+  std::unordered_map<std::string,rclcpp::Publisher<std_msgs::msg::Int32>::SharedPtr> anchor_tag_distance_publishers_;
+  std::map<std::string,Coord>MapTags;
   /**
    * @brief Searches for a word inside a phrase and returns true or false depending if it founds it.
    * @param phrase The phrase that may have the word you are searching for.
@@ -221,6 +223,7 @@ class ElikoDriver: public rclcpp::Node
         j++;
         distances.anchors.push_back(distance);
         distances.flags.push_back(error);
+
       }  
     }
     distances.num_anchors=j;
@@ -228,24 +231,39 @@ class ElikoDriver: public rclcpp::Node
     distances.tagError.flag=words[message_length-1];
     return distances;
   }
+  void fillEachDistanceMessage(Rr_l distances)
+  {
+    std::string tag_sn=distances.tag_sn;
+    for(int i=0; i<distances.num_anchors;i++){
+      std::string anchor_id=distances.anchors.at(i).anchor_id;
+      std::string address="Distance/A"+anchor_id+"/T"+tag_sn;
+      if(anchor_tag_distance_publishers_.size()==0||anchor_tag_distance_publishers_.count(address)==0){
+        auto publisher =this->create_publisher<std_msgs::msg::Int32>(address,10);
+        anchor_tag_distance_publishers_[address]=publisher;
+      }
+      std_msgs::msg::Int32 msg;
+      msg.data=distances.anchors[i].distance;
+      if(distances.flags[i].flag=="0x00")
+        anchor_tag_distance_publishers_[address]->publish(msg);
+    }
+  }
+   
 
   /**
    * @brief This function fills the Tag message that will be sent to the user.
    * @param message The message with all of the tags coordinates.
   */
-  void fillTagMessage(Coord message,rclcpp::Clock clock)
+  void AddTagData(Coord message)
   {
-    eliko_messages::msg::TagCoords tag;
-    tag.tag_sn=message.tag_sn;
-    tag.info=message.info;
-    tag.x_coord=message.tag_coords.x;
-    tag.y_coord=message.tag_coords.y;
-    tag.z_coord=message.tag_coords.z;
-    tag.seq_number=message.seq_number;
-    tag.timestamp=message.timestamp;
-    all_tags_.header.frame_id=this->frame_id_;
-    all_tags_.header.stamp=clock.now();
-    all_tags_.tag_coords.push_back(tag);
+    /**
+     * These next lines are used to fill the message with all of the detected Tag coordinates.
+     */
+    MapTags[message.tag_sn].seq_number=message.seq_number;
+    MapTags[message.tag_sn].tag_coords.x=message.tag_coords.x;
+    MapTags[message.tag_sn].tag_coords.y=message.tag_coords.y;
+    MapTags[message.tag_sn].tag_coords.z=message.tag_coords.z;
+    MapTags[message.tag_sn].info=message.info;
+    MapTags[message.tag_sn].timestamp=message.timestamp;
   }
 
   /**
@@ -296,7 +314,27 @@ class ElikoDriver: public rclcpp::Node
       anchor_marker_.color.b=0.0;
     } 
   }
-
+  /**
+   * @brief Takes all the Tags detected by the eliko sensors and stores in the all_tags_ variables.
+   * @param clock
+   */
+  void fillAllTags(rclcpp::Clock clock)
+  {
+    eliko_messages::msg::TagCoords tag;
+    for (const auto& item:MapTags)
+    {
+      tag.tag_sn=item.first;
+      tag.info=item.second.info;
+      tag.x_coord=item.second.tag_coords.x;
+      tag.y_coord=item.second.tag_coords.y;
+      tag.z_coord=item.second.tag_coords.z;
+      tag.seq_number=item.second.seq_number;
+      tag.timestamp=item.second.timestamp;
+      all_tags_.tag_coords.push_back(tag);
+    }
+    all_tags_.header.frame_id=this->frame_id_;
+    all_tags_.header.stamp=clock.now(); 
+  }
   /**
    * @brief Fills the Coord struct with all the data received.
    * @param words The vector string with all the data.
@@ -305,15 +343,18 @@ class ElikoDriver: public rclcpp::Node
   Coord fillCoords(std::vector<std::string> words)
   {
     Coord coordinates;
-    coordinates.seq_number=stoi(words[2]);
-    coordinates.tag_sn=words[3];
-    if(words[4]!="")
+    if (words.size() >= 9)
     {
-      coordinates.tag_coords.x=stof(words[4]);
-      coordinates.tag_coords.y=stof(words[5]);
-      coordinates.tag_coords.z=stof(words[6]);
-      coordinates.info=words[7];
-      coordinates.timestamp=stoi(words[8]);
+      coordinates.seq_number=stoi(words[2]);
+      coordinates.tag_sn=words[3];
+      if(words[4]!="")
+      {
+        coordinates.tag_coords.x=stof(words[4]);
+        coordinates.tag_coords.y=stof(words[5]);
+        coordinates.tag_coords.z=stof(words[6]);
+        coordinates.info=words[7];
+        coordinates.timestamp=stoi(words[8]);
+      }
     }
     return coordinates;
   }
@@ -356,7 +397,6 @@ class ElikoDriver: public rclcpp::Node
               publisher_anchor_message->publish(all_anchors_);
               return;
             }
-            
           }
         }
       }
@@ -377,11 +417,14 @@ class ElikoDriver: public rclcpp::Node
     send(client_socket,GET_RRL_COORD_COMMAND,sizeof(GET_RRL_COORD_COMMAND),0);
     char buffer[1024]={0};
     int bytes_read;
+    //To have different sequence numbers for each tag; 
+    std::map<std::string, int> seq_numbers;
     while((bytes_read=recv(client_socket,buffer,sizeof(buffer),0))>0)
     {
       /**
         * To show the coordinates of the anchors in the view
       */
+      bool NewCoords=false;
       std::vector<std::string> lines;
       lines=getLines(buffer);
       if(lines.size()>0)
@@ -394,16 +437,27 @@ class ElikoDriver: public rclcpp::Node
           {
             if(words[1]==RR_L)
             {
-              std::cout<<"Distances"<<std::endl;
+              //std::cout<<"Distances:"<<l<<std::endl;
+
               Rr_l tag_distances;
 
               tag_distances=fillDistances(words);
               fillDistanceMessage(tag_distances,clock);
-
-              publisher_distance->publish(all_distances_);
+              //to see if the tag has been seen before on the execution.
+              if(seq_numbers.count(tag_distances.tag_sn) == 0 || 
+                 (tag_distances.seq_number - seq_numbers[tag_distances.tag_sn] > 0 && 
+                  tag_distances.seq_number - seq_numbers[tag_distances.tag_sn] < 3) ||
+                 (tag_distances.seq_number < 3 && seq_numbers[tag_distances.tag_sn] > 250)
+                 ){
+                seq_numbers[tag_distances.tag_sn]=tag_distances.seq_number;
+                //std::cout<<"Last Seq Number: "<<seq_numbers[tag_distances.tag_sn]<<std::endl;
+                fillEachDistanceMessage(tag_distances);
+                publisher_distance->publish(all_distances_);
+              }
             }
             else if(words[1]==COORD)
             {
+              NewCoords=true;
               /**
                * Here, we obtain the data received from the server where the identifier is equal to "COORD".
                * This message sends the possition calculated for a tag. It is asynchronous and is sent everytime a new position has been calculated.
@@ -415,17 +469,9 @@ class ElikoDriver: public rclcpp::Node
                 /**
                 * This lines create the necessary elements to fill the point_msg that we will use to show the Tags on Rviz 
                 */
-                auto point_msg =std::make_shared<geometry_msgs::msg::PointStamped>();
-                point_msg->header=std_msgs::msg::Header();
-                point_msg->header.frame_id=this->frame_id_;
-                point_msg->header.stamp=clock.now();
-                point_msg->point.x=coordinates.tag_coords.x;
-                point_msg->point.y=coordinates.tag_coords.y;
-                point_msg->point.z=coordinates.tag_coords.z;
-                fillTagMessage(coordinates,clock);
-                addPointPublisher(coordinates);
-                publisherTagCoords->publish(all_tags_);
-                tag_point_publishers_[coordinates.tag_sn]->publish(*point_msg);
+                AddTagData(coordinates);
+                addPointPublisher(coordinates);  
+                
               }
             }
             else if(words[1]==NOT_UNDERSTAND)
@@ -439,7 +485,22 @@ class ElikoDriver: public rclcpp::Node
             
           }
         }
-       
+        if(NewCoords==true)
+        {
+          fillAllTags(clock);
+          publisherTagCoords->publish(all_tags_);
+          for( const auto& item:all_tags_.tag_coords){
+            auto point_msg =std::make_shared<geometry_msgs::msg::PointStamped>();
+            point_msg->header=std_msgs::msg::Header();
+            point_msg->header.frame_id=this->frame_id_;
+            point_msg->header.stamp=clock.now();
+            point_msg->point.x=item.x_coord;
+            point_msg->point.y=item.y_coord;
+            point_msg->point.z=item.z_coord;
+            tag_point_publishers_[item.tag_sn]->publish(*point_msg); 
+          }
+          all_tags_.tag_coords.clear();
+        }      
       }
     }
     return;
