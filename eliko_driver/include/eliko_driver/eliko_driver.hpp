@@ -155,7 +155,8 @@ class ElikoDriver: public rclcpp::Node
     return anchor;
   }
   /**
-   * @brief This function filld the distance Structure with the distance of each anchor to each one of the Tags.
+   * @brief This function filld the distance Structure with the distance of each anchor to each one
+   * of the Tags.
    * @param distances The distance data received from the server.
   */
   void fillDistanceMessage(Rr_l distances,rclcpp::Clock clock)
@@ -177,8 +178,9 @@ class ElikoDriver: public rclcpp::Node
   }
 
   /**
-   *  @brief This function searches for any publishers with the tag obtained when reading the coord messages received.
-   * If it does not find any, it creates a new one.
+   *  @brief This function searches for any publishers with the tag obtained when reading the coord 
+   *  messages received.
+   *  If it does not find any, it creates a new one.
    *  @param coord The coordinates data received from the server.  
   */
   void addPointPublisher(Coord coord)
@@ -237,7 +239,8 @@ class ElikoDriver: public rclcpp::Node
     for(int i=0; i<distances.num_anchors;i++){
       std::string anchor_id=distances.anchors.at(i).anchor_id;
       std::string address="Distance/A"+anchor_id+"/T"+tag_sn;
-      if(anchor_tag_distance_publishers_.size()==0||anchor_tag_distance_publishers_.count(address)==0){
+      if(anchor_tag_distance_publishers_.size()==0||
+         anchor_tag_distance_publishers_.count(address)==0){
         auto publisher =this->create_publisher<std_msgs::msg::Int32>(address,10);
         anchor_tag_distance_publishers_[address]=publisher;
       }
@@ -360,14 +363,14 @@ class ElikoDriver: public rclcpp::Node
   }
 
   /**
-   * @brief Sends the message to obtain the Anchor Coords to the server, obtains all the data sent back by the server and stores them in a struct.
+   * @brief Sends the message to obtain the Anchor Coords to the server, obtains all the data sent back by the server 
+   * and stores them in a struct.
    * @param client_socket The Socket where the client is connected.
-   * @param node  The Node created by the user.
   */
-  void getAnchorCoords(int client_socket,rclcpp::Node::SharedPtr node,rclcpp::Clock clock)
+  void getAnchorCoords(int client_socket,rclcpp::Clock clock)
   {
-    auto publisher_anchor_message=node->create_publisher<eliko_messages::msg::AnchorCoordsList>("AnchorCoords",10);
-    auto publisher_anchor=node->create_publisher<visualization_msgs::msg::Marker>("MarkerCloudAnchors",10);
+    auto publisher_anchor_message=create_publisher<eliko_messages::msg::AnchorCoordsList>("AnchorCoords",10);
+    auto publisher_anchor=create_publisher<visualization_msgs::msg::Marker>("MarkerCloudAnchors",10);
     send(client_socket,GET_ANCHOR_COMMAND,sizeof(GET_ANCHOR_COMMAND),0);
     int bytes_read;
     char buffer[1024]={0};
@@ -406,14 +409,13 @@ class ElikoDriver: public rclcpp::Node
   /**
    * @brief Sends the message to receive the different information from the Tag and stores the response in a struct.
    * Once all the data is stored. it cleans the buffer.
-   * @param client_socket The socket where the conversation is maintained.
-   * @param node The driver node to create the different publishers. 
+   * @param client_socket The socket where the conversation is maintained. 
    * @param clock 
   */
-  void setReportList(int client_socket,rclcpp::Node::SharedPtr node,rclcpp::Clock clock)
+  void setReportList(int client_socket,rclcpp::Clock clock)
   {
-    auto publisherTagCoords=node->create_publisher<eliko_messages::msg::TagCoordsList>("TagCoords",10);
-    auto publisher_distance=node->create_publisher<eliko_messages::msg::DistancesList>("Distances",10);
+    auto publisherTagCoords=create_publisher<eliko_messages::msg::TagCoordsList>("TagCoords",10);
+    auto publisher_distance=create_publisher<eliko_messages::msg::DistancesList>("Distances",10);
     send(client_socket,GET_RRL_COORD_COMMAND,sizeof(GET_RRL_COORD_COMMAND),0);
     char buffer[1024]={0};
     int bytes_read;
@@ -459,15 +461,18 @@ class ElikoDriver: public rclcpp::Node
             {
               NewCoords=true;
               /**
-               * Here, we obtain the data received from the server where the identifier is equal to "COORD".
-               * This message sends the possition calculated for a tag. It is asynchronous and is sent everytime a new position has been calculated.
+               * Here, we obtain the data received from the server where the identifier is equal to
+               * "COORD".
+               * This message sends the possition calculated for a tag. It is asynchronous and is 
+               * sent everytime a new position has been calculated.
               */
               Coord coordinates;
               coordinates=fillCoords(words);
               if(!isItAnError(coordinates.info)) //To see if the string received is an error or a warning sent by the Server
               {
                 /**
-                * This lines create the necessary elements to fill the point_msg that we will use to show the Tags on Rviz 
+                * This lines create the necessary elements to fill the point_msg that we will use 
+                * to show the Tags on Rviz 
                 */
                 AddTagData(coordinates);
                 addPointPublisher(coordinates);  
@@ -549,7 +554,6 @@ class ElikoDriver: public rclcpp::Node
   {
     auto start=std::chrono::high_resolution_clock::now();
     std::chrono::seconds duration(14);
-    auto node=rclcpp::Node::make_shared("publisherData");
     rclcpp::Clock clock;
     this->declare_parameter("serverIP",DEFAULT_SERVER_IP);
     this->declare_parameter("serverPort",DEFAULT_PORT);
@@ -562,7 +566,7 @@ class ElikoDriver: public rclcpp::Node
       std::cerr<<"Socket creation error"<<std::endl;
     else
     {
-      RCLCPP_DEBUG(node->get_logger(),"Socket Creado");
+      RCLCPP_DEBUG(get_logger(),"Socket Creado");
       sockaddr_in serverAddress;
       serverAddress.sin_family=AF_INET;
       serverAddress.sin_port=htons(DEFAULT_PORT);
@@ -571,19 +575,19 @@ class ElikoDriver: public rclcpp::Node
       {
         std::cerr<<"Problem trying to connect to the server"<<std::endl;
         std::cout<<"Error connecting to the server"<<std::endl;
-        RCLCPP_DEBUG(node->get_logger(),"Problema conectandome");
+        RCLCPP_DEBUG(get_logger(),"Problema conectandome");
         close(client_socket);
       }
       else
       {
-        RCLCPP_DEBUG(node->get_logger(),"Conectado");
+        RCLCPP_DEBUG(get_logger(),"Conectado");
         rclcpp::Clock clock;
         EULAStatus(client_socket);
         while (std::chrono::high_resolution_clock::now()- start<duration)
         {
-          getAnchorCoords(client_socket,node,clock);
+          getAnchorCoords(client_socket,clock);
         } 
-        setReportList(client_socket,node,clock);
+        setReportList(client_socket,clock);
       }    
     }
   }
