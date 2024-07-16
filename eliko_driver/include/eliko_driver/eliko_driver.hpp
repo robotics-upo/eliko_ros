@@ -28,7 +28,7 @@
 #define DEFAULT_SERVER_IP "10.8.4.1"
 #define POINTCLOUD_HEIGHT 1
 #define SIZE 1000
-#define DEFAULT_FRAME_ID "Eliko"//This row stores the value of the default frame id which will bw used to show the data in rviz2. 
+#define DEFAULT_FRAME_ID "eliko"//This row stores the value of the default frame id which will bw used to show the data in rviz2. 
 /**
  * These next rows store the strings that will be used to identify the different types of messages
  * received from the radar.
