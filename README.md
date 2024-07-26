@@ -87,7 +87,7 @@ Now, we will start talking briefly about every file of this project focusing on 
 Firstly we will talk  about the files inside eliko_driver, and next, we will talk about the ones inside eliko_messages.
 * ### eliko_driver.
     This package contains all of the code used to obtain the distances from the eliko server and send it to the user. (It also shows the coordinates of the tag in Rviz2)
-    * ### eliko_driver.h
+    * ### eliko_data.h
         This file contains all of the structures that are going to be used to store the data sent by the server and send it to the user.
 
     * ### eliko_driver.hpp
