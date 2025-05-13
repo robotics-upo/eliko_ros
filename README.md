@@ -56,7 +56,7 @@ In this project, we are working with the **ROS 2 Humble** distribution on Ubuntu
 
 * ### Connect to the server and configure the Anchor possitions
     To do this configurations, you can follow the **Eliko RTLS Installation Guide** located in the documentation webpage:
-    <https://eliko.tech/documentation/>
+    <[https://eliko.tech/eliko-rtls-documentation/](https://eliko.tech/eliko-rtls-documentation/)>
     
     (In this project we connect to our server using Wi Fi)
 
