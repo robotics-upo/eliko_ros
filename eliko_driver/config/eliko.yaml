@@ -1,0 +1,16 @@
+eliko_driver_node:
+  ros__parameters:
+
+    # CONNECTION SETTINGS
+    serverIP: "10.8.4.1"
+    serverPort: 25025
+    frameID: "eliko"
+    
+    # RVIZ
+    viz: false           
+    
+    # RECORD BAG
+    record_bag: false   
+
+    # DEBUG MODE
+    debug_mode: false  
