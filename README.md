@@ -67,17 +67,21 @@ Once you have installed ROS 2, Rviz 2, Tf 2, colcon, connected to the server, co
 For executing the driver you should go to the directory in wich you have downloaded this project and execute the next commands:
 
 * ```
-    colcon build --packages-select eliko_driver eliko_messages
+    colcon build --packages-select eliko_driver eliko_messages eliko_monitor
   ```
 * ```
     source install/setup.bash
   ```
 * ``` 
-    ros2 launch eliko_driver eliko_launch.xml
+    ros2 launch eliko_driver eliko_driver_launch-py
+  ```
+* ``` 
+    ros2 launch eliko_monitor monitor_launch.py
   ```
 The first command is used to build the project.\
 The second command is used to source the project.\
-The last command is used to launch the project and see the results in Rviz 2.
+The third command is used to launch the driver.\
+The last command is used to monitoring the tags (Frequency, loss, distances...)
 
 About the code:
 ---
