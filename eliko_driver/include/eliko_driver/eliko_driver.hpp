@@ -9,6 +9,8 @@
 #include <stdio.h>
 #include <chrono>
 #include <cstring>
+#include <errno.h>
+#include <fcntl.h>
 #include <sys/socket.h>
 #include <sys/types.h>
 #include <netinet/in.h>

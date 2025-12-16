@@ -288,11 +288,45 @@ void ElikoDriver::runDriver() {
 
     RCLCPP_INFO(get_logger(), "Connecting to Eliko Server at %s:%d...", server_ip_.c_str(), server_port_);
 
-    if (connect(client_socket_, (struct sockaddr*)&serverAddress, sizeof(serverAddress)) == -1) {
-      RCLCPP_ERROR(get_logger(), "Connection FAILED. Retrying in 5s...");
+    int flags = fcntl(client_socket_, F_GETFL, 0);
+    fcntl(client_socket_, F_SETFL, flags | O_NONBLOCK);
+
+    bool connected = false;
+    int res = connect(client_socket_, (struct sockaddr*)&serverAddress, sizeof(serverAddress));
+
+    if (res < 0) {
+      if (errno == EINPROGRESS) {
+        fd_set wait_set;
+        FD_ZERO(&wait_set);
+        FD_SET(client_socket_, &wait_set);
+
+        struct timeval timeout;
+        timeout.tv_sec = 3; 
+        timeout.tv_usec = 0;
+
+        int select_res = select(client_socket_ + 1, NULL, &wait_set, NULL, &timeout);
+        
+        if (select_res > 0) {
+
+          int so_error;
+          socklen_t len = sizeof(so_error);
+          getsockopt(client_socket_, SOL_SOCKET, SO_ERROR, &so_error, &len);
+          if (so_error == 0) {
+            connected = true;
+          }
+        } 
+      }
+    } else {
+      connected = true;
+    }
+
+    fcntl(client_socket_, F_SETFL, flags);
+
+    if (!connected) {
+      RCLCPP_WARN(get_logger(), "Connection attempt timed out or failed. Retrying...");
       close(client_socket_);
       client_socket_ = -1;
-      std::this_thread::sleep_for(std::chrono::seconds(5));
+      std::this_thread::sleep_for(std::chrono::seconds(2)); 
       continue;
     }
 
@@ -441,7 +475,7 @@ void ElikoDriver::checkTimeout()
     std::string tag = pair.first;
     if (!tag_is_lost_[tag]) {
       double seconds_since_last = (now - pair.second).seconds();
-      if (seconds_since_last > 3.0) {
+      if (seconds_since_last > 2.0) {
         RCLCPP_WARN(get_logger(), "No data received from tag %s", tag.c_str());
         tag_is_lost_[tag] = true; 
       }
