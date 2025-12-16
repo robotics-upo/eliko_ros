@@ -73,7 +73,7 @@ For executing the driver you should go to the directory in wich you have downloa
     source install/setup.bash
   ```
 * ``` 
-    ros2 launch eliko_driver eliko_driver_launch-py
+    ros2 launch eliko_driver eliko_driver_launch.py
   ```
 * ``` 
     ros2 launch eliko_monitor monitor_launch.py
