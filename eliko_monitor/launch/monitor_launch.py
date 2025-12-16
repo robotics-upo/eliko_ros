@@ -13,13 +13,8 @@ def generate_launch_description():
     # Edit these variables to change default values without touching complex code.
     
     DEFAULT_TARGET_FREQ = '50.0'   # Expected sensor frequency (Hz)
-<<<<<<< HEAD
     DEFAULT_REPORT_FREQ = '10.0'     # UI Table update frequency (Hz) -> 1.0 means once per second
     DEFAULT_RECORD_BAG  = 'false'   # Record bag by default: 'true' or 'false'
-=======
-    DEFAULT_REPORT_FREQ = '10.0'   # UI Table update frequency (Hz) -> 1.0 means once per second
-    DEFAULT_RECORD_BAG  = 'true'   # Record bag by default: 'true' or 'false'
->>>>>>> 6321d4c47f4c9112ad0fbc27cb5ea6dd0c6558c6
     BAG_OUTPUT_DIR      = 'tunel_upo' # Bag folder name if recording is enabled
     
     # Node Configuration

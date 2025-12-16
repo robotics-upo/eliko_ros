@@ -4,11 +4,7 @@
 #include <string>
 #include <map>
 #include <vector>
-<<<<<<< HEAD
-#include <deque>  // Required for Sliding Window
-=======
 #include <deque>  
->>>>>>> 6321d4c47f4c9112ad0fbc27cb5ea6dd0c6558c6
 #include <regex>
 #include <iomanip>
 #include <iostream>
@@ -29,13 +25,9 @@ using namespace std::chrono_literals;
 
 struct TopicData {
     int32_t last_distance_cm;
-<<<<<<< HEAD
     // We use a deque to store timestamps of received messages.
     // This allows exact calculation of messages per second (Sliding Window).
-=======
->>>>>>> 6321d4c47f4c9112ad0fbc27cb5ea6dd0c6558c6
     std::deque<rclcpp::Time> history_buffer; 
-    
     rclcpp::Subscription<std_msgs::msg::Int32>::SharedPtr sub;
     std::string anchor_id;
     std::string tag_id;
@@ -47,10 +39,7 @@ class DistanceMonitor : public rclcpp::Node
 public:
     DistanceMonitor() : Node("distance_monitor")
     {
-<<<<<<< HEAD
         // Parameters
-=======
->>>>>>> 6321d4c47f4c9112ad0fbc27cb5ea6dd0c6558c6
         this->declare_parameter("target_frequency", 100.0);
         target_freq_ = this->get_parameter("target_frequency").as_double();
 
@@ -58,17 +47,14 @@ public:
         double report_freq = this->get_parameter("report_frequency").as_double();
         if (report_freq <= 0.0) report_freq = 1.0;
 
-<<<<<<< HEAD
         // Timer 1: Discovery (2s)
         discovery_timer_ = this->create_wall_timer(
             2000ms, std::bind(&DistanceMonitor::discover_topics, this));
 
         // Timer 2: UI Report
-=======
         discovery_timer_ = this->create_wall_timer(
             2000ms, std::bind(&DistanceMonitor::discover_topics, this));
 
->>>>>>> 6321d4c47f4c9112ad0fbc27cb5ea6dd0c6558c6
         auto report_period = std::chrono::duration<double>(1.0 / report_freq);
         report_timer_ = this->create_wall_timer(
             std::chrono::duration_cast<std::chrono::nanoseconds>(report_period),
@@ -125,10 +111,7 @@ private:
             it->second.last_distance_cm = msg->data;
             it->second.active = true;
             
-<<<<<<< HEAD
             // Add current timestamp to the history buffer
-=======
->>>>>>> 6321d4c47f4c9112ad0fbc27cb5ea6dd0c6558c6
             it->second.history_buffer.push_back(this->now());
         }
     }
@@ -139,22 +122,13 @@ private:
 
         const int id_width = 10; 
         const int data_width = 14; 
-<<<<<<< HEAD
-=======
-        
->>>>>>> 6321d4c47f4c9112ad0fbc27cb5ea6dd0c6558c6
         const int total_width = (id_width * 2) + (data_width * 3);
-        
         std::string separator_line(total_width, '-');
-        
         std::string group_separator = "";
         for(int i=0; i < total_width/2; i++) group_separator += "- ";
         if(group_separator.length() < (size_t)total_width) group_separator += "-";
 
-<<<<<<< HEAD
         // --- Dynamic header ---
-=======
->>>>>>> 6321d4c47f4c9112ad0fbc27cb5ea6dd0c6558c6
         std::string title_text = "ELIKO UWB NETWORK STATUS";
         int title_len = title_text.length();
         int padding_len = (total_width - title_len) / 2;
@@ -202,10 +176,7 @@ private:
                 });
 
             for (TopicData* data : anchors_list) {
-<<<<<<< HEAD
                 // Buffer cleaning
-=======
->>>>>>> 6321d4c47f4c9112ad0fbc27cb5ea6dd0c6558c6
                 while (!data->history_buffer.empty() && 
                       (now - data->history_buffer.front()) > one_second) {
                     data->history_buffer.pop_front();
@@ -228,10 +199,7 @@ private:
                     else color_code = RED;
                 }
 
-<<<<<<< HEAD
                 // Print rows using the two widths defined
-=======
->>>>>>> 6321d4c47f4c9112ad0fbc27cb5ea6dd0c6558c6
                 std::cout << std::left 
                           << std::setw(id_width) << data->tag_id 
                           << std::setw(data_width+2) << data->anchor_id 
