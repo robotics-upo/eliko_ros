@@ -65,25 +65,24 @@ bool ElikoDriver::isItAnError(const std::string& phrase){
 std::vector<std::string> ElikoDriver::getWords(std::string line)
 {
   std::vector<std::string> words;
-  std::istringstream iss(line);
   std::string word;
   
   if (!line.empty() && line.back() == '\r') {
       line.pop_back();
   }
-  std::istringstream iss2(line);
-  while (std::getline(iss2,word,','))
+  std::istringstream iss(line);
+  while (std::getline(iss,word,','))
     words.push_back(word);
   return words;
 }
 
-AnchorCoord ElikoDriver::fillAnchorCoord(std::vector<std::string>words)
+AnchorCoord ElikoDriver::fillAnchorCoord(const std::vector<std::string>& words)
 {
   AnchorCoord anchor;
   if (words.size() < 10) return anchor;
 
   anchor.anchor_id=words[2];
-  anchor.anchor_role=words[3][0];
+  anchor.anchor_role = words[3].empty() ? ' ' : words[3][0];
   anchor.anchor_sn=words[4];
   if(words[5]!="")
   {
@@ -104,7 +103,7 @@ AnchorCoord ElikoDriver::fillAnchorCoord(std::vector<std::string>words)
   return anchor;
 }
 
-void ElikoDriver::fillDistanceMessage(Rr_l distances,rclcpp::Time now)
+void ElikoDriver::fillDistanceMessage(const Rr_l& distances, rclcpp::Time now)
 {
   eliko_messages::msg::Distances dist;
   if (distances.num_anchors>0)
@@ -115,14 +114,14 @@ void ElikoDriver::fillDistanceMessage(Rr_l distances,rclcpp::Time now)
     for (int i=0;i<distances.num_anchors;i++)
     {
       dist.anchor_sn=distances.anchors[i].anchor_id;
-      dist.distance=distances.anchors[i].distance;
+      dist.distance=static_cast<float>(distances.anchors[i].distance);
       dist.tag_sn=distances.tag_sn;
       all_distances_.anchor_distances.push_back(dist);
     }
   }  
 }
 
-void ElikoDriver::addPointPublisher(std::string tag_sn)
+void ElikoDriver::addPointPublisher(const std::string& tag_sn)
 {
   if(tag_point_publishers_.count(tag_sn)==0)
   {
@@ -131,7 +130,7 @@ void ElikoDriver::addPointPublisher(std::string tag_sn)
   }
 }
 
-Rr_l ElikoDriver::fillDistances(std::vector<std::string> words)
+Rr_l ElikoDriver::fillDistances(const std::vector<std::string>& words)
 {
   Rr_l distances;
   int j=0;
@@ -169,7 +168,7 @@ Rr_l ElikoDriver::fillDistances(std::vector<std::string> words)
   return distances;
 }
 
-void ElikoDriver::fillEachDistanceMessage(Rr_l distances)
+void ElikoDriver::fillEachDistanceMessage(const Rr_l& distances)
 {
   std::string tag_sn=distances.tag_sn;
   for(int i=0; i<distances.num_anchors;i++){
@@ -187,7 +186,7 @@ void ElikoDriver::fillEachDistanceMessage(Rr_l distances)
   }
 }
 
-void ElikoDriver::fillAnchorMessage(AnchorCoord message,rclcpp::Time now)
+void ElikoDriver::fillAnchorMessage(const AnchorCoord& message,rclcpp::Time now)
 {
   eliko_messages::msg::AnchorCoords anchor;
   anchor.anchor_id=message.anchor_id;
@@ -204,7 +203,7 @@ void ElikoDriver::fillAnchorMessage(AnchorCoord message,rclcpp::Time now)
   all_anchors_.anchor_coords.push_back(anchor);
 }
 
-void ElikoDriver::fillMarkerMessage(AnchorCoord anchors,rclcpp::Time now)
+void ElikoDriver::fillMarkerMessage(const AnchorCoord& anchors,rclcpp::Time now)
 {
   if(anchors.anchor_id!="NotConfigured"&&anchors.connection_state!=0) 
   {
@@ -226,7 +225,7 @@ void ElikoDriver::fillMarkerMessage(AnchorCoord anchors,rclcpp::Time now)
   } 
 }
 
-Coord ElikoDriver::fillCoords(std::vector<std::string> words)
+Coord ElikoDriver::fillCoords(const std::vector<std::string>& words)
 {
   Coord coordinates;
   coordinates.seq_number = 0;
@@ -331,7 +330,7 @@ void ElikoDriver::runDriver() {
     }
 
     RCLCPP_INFO(get_logger(), "Connected!");
-    rx_buffer_ = "";
+    rx_buffer_.clear();
     
     char buffer[2048];
     bool eula_accepted = false;
@@ -377,8 +376,9 @@ void ElikoDriver::runDriver() {
         if (getting_anchors) {
           if (words.size() > 1 && words[1] == ANCHOR_COORD) {
             AnchorCoord anchor = fillAnchorCoord(words);
-            fillMarkerMessage(anchor, this->now());
-            fillAnchorMessage(anchor, this->now());
+            rclcpp::Time anchor_time = this->now();
+            fillMarkerMessage(anchor, anchor_time);
+            fillAnchorMessage(anchor, anchor_time);
             pub_anchor_marker_->publish(anchor_marker_);
           }
           else if (words.size() > 1 && words[1] == "EOF") {
@@ -463,7 +463,7 @@ void ElikoDriver::runDriver() {
 
   } // End Outer Loop (Connection)
     
-    RCLCPP_INFO(get_logger(), "Driver Thread Stopping.");
+  RCLCPP_INFO(get_logger(), "Driver Thread Stopping.");
 }
 
 void ElikoDriver::checkTimeout()

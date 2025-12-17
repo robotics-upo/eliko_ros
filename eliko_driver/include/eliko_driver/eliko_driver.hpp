@@ -75,7 +75,7 @@ private:
   rclcpp::Publisher<eliko_messages::msg::TagCoordsList>::SharedPtr pub_tag_list_;
   rclcpp::Publisher<eliko_messages::msg::DistancesList>::SharedPtr pub_distances_;
 
-  int client_socket_;
+  std::atomic<int> client_socket_;
   std::string server_ip_;
   int server_port_;
   std::string frame_id_;
@@ -99,14 +99,14 @@ private:
   std::vector<std::string> getWords(std::string line);
 
   // Data processing functions
-  AnchorCoord fillAnchorCoord(std::vector<std::string>words);
-  void fillDistanceMessage(Rr_l distances,rclcpp::Time now);
-  void addPointPublisher(std::string tag_sn);
-  Rr_l fillDistances(std::vector<std::string> words);
-  void fillEachDistanceMessage(Rr_l distances);
-  void fillAnchorMessage(AnchorCoord message,rclcpp::Time now);
-  void fillMarkerMessage(AnchorCoord anchors,rclcpp::Time now);
-  Coord fillCoords(std::vector<std::string> words);
+  AnchorCoord fillAnchorCoord(const std::vector<std::string>& words);
+  void fillDistanceMessage(const Rr_l& distances, rclcpp::Time now);
+  void addPointPublisher(const std::string& tag_sn);
+  Rr_l fillDistances(const std::vector<std::string>& words);
+  void fillEachDistanceMessage(const Rr_l& distances);
+  void fillAnchorMessage(const AnchorCoord& message,rclcpp::Time now);
+  void fillMarkerMessage(const AnchorCoord& anchors,rclcpp::Time now);
+  Coord fillCoords(const std::vector<std::string>& words);
 
   // Communication functions
   void sendCommand(const char* cmd);
